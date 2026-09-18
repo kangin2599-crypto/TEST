@@ -4,13 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>test</title>
+    <!-- Firebase SDK (Compat v10) -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     <style>
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #121212; color: #ffffff; margin: 0; padding: 12px; display: flex; justify-content: center; }
         .container { width: 100%; max-width: 480px; background-color: #1e1e1e; border: 1px solid #333333; border-radius: 12px; padding: 16px; }
         .site-title { text-align: center; font-size: 20px; font-weight: bold; margin-bottom: 12px; color: #ffffff; }
         .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333333; padding-bottom: 12px; margin-bottom: 12px; }
-        .money-box { font-size: 18px; font-weight: bold; color: #ffffff; }
+        .money-box { font-size: 16px; font-weight: bold; color: #ffffff; }
         .btn-group { display: flex; gap: 4px; }
         .btn-header { padding: 6px 10px; font-size: 12px; background-color: #333333; color: #ffffff; border: 1px solid #555555; border-radius: 6px; cursor: pointer; }
         .btn-admin { background-color: #ffffff; color: #000000; border: none; font-weight: bold; }
@@ -24,7 +27,7 @@
         .game-section.active { display: block; }
 
         .bet-box { background: #121212; border: 1px solid #333333; padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; }
-        .bet-box input, .bet-box select { padding: 6px; font-size: 13px; border-radius: 4px; border: 1px solid #444444; background: #222222; color: #ffffff; text-align: center; width: 65px; }
+        .bet-box input, .bet-box select { padding: 6px; font-size: 13px; border-radius: 4px; border: 1px solid #444444; background: #222222; color: #ffffff; text-align: center; width: 90px; }
 
         .action-row { display: flex; gap: 6px; justify-content: center; margin-top: 10px; }
         .action-btn { flex: 1; padding: 10px 0; font-size: 13px; font-weight: bold; border: 1px solid #444444; border-radius: 6px; cursor: pointer; background-color: #2a2a2a; color: #ffffff; }
@@ -50,8 +53,8 @@
         .admin-panel h4 { margin: 0 0 8px 0; color: #fff; border-bottom: 1px solid #333; padding-bottom: 4px; }
         .admin-toggle-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; background: #222; padding: 8px; border-radius: 4px; }
         .admin-toggle-item { display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
-        .coupon-list { max-height: 100px; overflow-y: auto; margin-bottom: 8px; background: #222; padding: 6px; border-radius: 4px; }
-        .coupon-item { display: flex; justify-content: space-between; align-items: center; padding: 3px 0; border-bottom: 1px solid #333; }
+        .coupon-list { max-height: 120px; overflow-y: auto; margin-bottom: 8px; background: #222; padding: 6px; border-radius: 4px; }
+        .coupon-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #333; }
         .btn-del { background: #d32f2f; color: white; border: none; padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 10px; }
     </style>
 </head>
@@ -70,7 +73,7 @@
 
         <!-- 관리자 메뉴 영역 -->
         <div id="admin-section" class="admin-panel" style="display: none;">
-            <h4>게임 활성화 설정 (ON / OFF)</h4>
+            <h4>게임 활성화 설정 (실시간 전체 공유)</h4>
             <div class="admin-toggle-group">
                 <label class="admin-toggle-item">주사위 <input type="checkbox" id="toggle-dice" onchange="toggleGameSetting('dice', this.checked)"></label>
                 <label class="admin-toggle-item">블랙잭 <input type="checkbox" id="toggle-bj" onchange="toggleGameSetting('bj', this.checked)"></label>
@@ -78,17 +81,17 @@
                 <label class="admin-toggle-item">홀덤 <input type="checkbox" id="toggle-holdem" onchange="toggleGameSetting('holdem', this.checked)"></label>
             </div>
 
-            <h4>관리자 쿠폰 관리</h4>
+            <h4>공용 실시간 쿠폰 관리</h4>
             <div class="coupon-list" id="coupon-list-box"></div>
             
             <div style="display: flex; gap: 4px; margin-bottom: 8px;">
                 <input type="text" id="new-code" placeholder="쿠폰 코드" style="flex:1; padding: 4px; font-size: 12px;">
-                <input type="number" id="new-amount" placeholder="금액(L)" style="width: 70px; padding: 4px; font-size: 12px;">
+                <input type="number" id="new-amount" placeholder="금액(L)" style="width: 80px; padding: 4px; font-size: 12px;">
                 <button class="btn-header" onclick="addCoupon()">생성</button>
             </div>
             
             <div style="display: flex; justify-content: space-between; margin-top: 10px; border-top: 1px solid #333; padding-top: 8px;">
-                <button class="btn-header" onclick="setPlayerMoneyDirect()">잔액 직접 변경</button>
+                <button class="btn-header" onclick="setPlayerMoneyDirect()">내 잔액 수정</button>
                 <button class="btn-header" onclick="closeAdminMenu()">닫기</button>
             </div>
         </div>
@@ -115,7 +118,7 @@
                     <option value="8">8</option><option value="9">9</option><option value="10">10</option>
                     <option value="11">11</option><option value="12">12</option>
                 </select>
-                | 배팅금: <input type="number" id="diceBet" min="1" value="10"> L
+                | 배팅금: <input type="number" id="diceBet" min="1" value="10000"> L
             </div>
             <button class="action-btn btn-primary" style="width: 100%;" onclick="playDice()">굴리기</button>
             <div id="dice-result" class="result-msg"></div>
@@ -124,7 +127,7 @@
         <!-- 2. 블랙잭 -->
         <div id="game-bj" class="game-section">
             <div class="bet-box">
-                배팅금: <input type="number" id="bjBet" min="1" value="10"> L
+                배팅금: <input type="number" id="bjBet" min="1" value="10000"> L
                 <button class="action-btn btn-primary" id="bj-start-btn" style="width: 70px; padding: 4px; margin-left: 8px;" onclick="startBlackjack()">시작</button>
             </div>
             <div id="bj-dealer-log" class="dealer-log"></div>
@@ -146,7 +149,7 @@
         <!-- 3. 세븐 포커 -->
         <div id="game-poker" class="game-section">
             <div class="bet-box">
-                기본 베팅: <input type="number" id="pokerBet" min="1" value="10"> L
+                기본 베팅: <input type="number" id="pokerBet" min="1" value="10000"> L
                 <button class="action-btn btn-primary" id="poker-start-btn" style="width: 70px; padding: 4px; margin-left: 8px;" onclick="startSevenPoker()">시작</button>
             </div>
             <div class="pot-box">총 판돈: <span id="poker-pot">0</span> L</div>
@@ -170,7 +173,7 @@
         <!-- 4. 텍사스 홀덤 -->
         <div id="game-holdem" class="game-section">
             <div class="bet-box">
-                기본 베팅: <input type="number" id="holdemBet" min="1" value="10"> L
+                기본 베팅: <input type="number" id="holdemBet" min="1" value="10000"> L
                 <button class="action-btn btn-primary" id="holdem-start-btn" style="width: 70px; padding: 4px; margin-left: 8px;" onclick="startHoldem()">시작</button>
             </div>
             <div class="pot-box">총 판돈: <span id="holdem-pot">0</span> L</div>
@@ -204,28 +207,65 @@
 
     <script>
         const ADMIN_PASSWORD = "kangin2599!";
+        const DEFAULT_MONEY = 1000000; // 기본 금액 1,000,000 L
 
-        // 1. 상태 데이터 로드
-        let currentMoney = parseInt(localStorage.getItem('casino_money')) || 50;
-        let coupons = JSON.parse(localStorage.getItem('casino_coupons')) || [
-            { code: "WELCOME", amount: 100, used: false }
-        ];
-        let gameActiveSettings = JSON.parse(localStorage.getItem('casino_active_games')) || {
-            dice: true, bj: true, poker: true, holdem: true
+        // 전용 공용 Firebase Realtime Database 연동
+        const firebaseConfig = {
+            databaseURL: "https://casino-shared-db-default-rtdb.asia-southeast1.firebasedatabase.app"
         };
+        
+        let db = null;
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.database();
+        } catch(e) { console.log(e); }
+
+        // 기본 로컬 데이터 설정 (최초 접속 시 1,000,000 L 부여)
+        let currentMoney = parseInt(localStorage.getItem('casino_money'));
+        if (isNaN(currentMoney)) {
+            currentMoney = DEFAULT_MONEY;
+        }
+
+        let coupons = [];
+        let usedCouponsLocal = JSON.parse(localStorage.getItem('casino_used_coupons')) || {};
+        let gameActiveSettings = { dice: true, bj: true, poker: true, holdem: true };
+
+        // Firebase 실시간 동기화 (모든 접속자 실시간 공유)
+        if (db) {
+            // 1. 공용 쿠폰 데이터 실시간 수신
+            db.ref('coupons').on('value', (snapshot) => {
+                const data = snapshot.val();
+                coupons = [];
+                if (data) {
+                    Object.keys(data).forEach(key => {
+                        coupons.push({ id: key, ...data[key] });
+                    });
+                }
+                renderAdminCoupons();
+            });
+
+            // 2. 공용 게임 ON/OFF 설정 실시간 수신
+            db.ref('game_settings').on('value', (snapshot) => {
+                const data = snapshot.val();
+                if (data) {
+                    gameActiveSettings = data;
+                    syncAdminToggles();
+                    applyGameVisibility();
+                }
+            });
+        }
 
         function saveGameData() {
             localStorage.setItem('casino_money', currentMoney);
-            localStorage.setItem('casino_coupons', JSON.stringify(coupons));
-            localStorage.setItem('casino_active_games', JSON.stringify(gameActiveSettings));
+            localStorage.setItem('casino_used_coupons', JSON.stringify(usedCouponsLocal));
         }
 
         function updateDisplay() {
-            document.getElementById('money').innerText = currentMoney;
+            document.getElementById('money').innerText = currentMoney.toLocaleString();
             saveGameData();
         }
 
-        /* --- 관리자 게임 설정 스위치 --- */
+        /* --- 게임 활성화 및 동기화 --- */
         function applyGameVisibility() {
             const games = ['dice', 'bj', 'poker', 'holdem'];
             let activeTabFound = false;
@@ -248,15 +288,18 @@
 
         function toggleGameSetting(gameKey, isChecked) {
             gameActiveSettings[gameKey] = isChecked;
-            saveGameData();
-            applyGameVisibility();
+            if (db) {
+                db.ref('game_settings').set(gameActiveSettings);
+            } else {
+                applyGameVisibility();
+            }
         }
 
         function syncAdminToggles() {
-            document.getElementById('toggle-dice').checked = gameActiveSettings.dice;
-            document.getElementById('toggle-bj').checked = gameActiveSettings.bj;
-            document.getElementById('toggle-poker').checked = gameActiveSettings.poker;
-            document.getElementById('toggle-holdem').checked = gameActiveSettings.holdem;
+            document.getElementById('toggle-dice').checked = !!gameActiveSettings.dice;
+            document.getElementById('toggle-bj').checked = !!gameActiveSettings.bj;
+            document.getElementById('toggle-poker').checked = !!gameActiveSettings.poker;
+            document.getElementById('toggle-holdem').checked = !!gameActiveSettings.holdem;
         }
 
         function switchGame(gameType) {
@@ -280,14 +323,17 @@
         function useCouponModal() {
             const inputCode = prompt("쿠폰 코드를 입력하세요:");
             if (!inputCode) return;
-            const target = coupons.find(c => c.code.toUpperCase() === inputCode.trim().toUpperCase());
-            if (!target) return alert("존재하지 않는 쿠폰입니다.");
-            if (target.used) return alert("이미 사용된 쿠폰입니다.");
+            const cleanCode = inputCode.trim().toUpperCase();
 
-            target.used = true;
-            currentMoney += target.amount;
+            const target = coupons.find(c => c.code === cleanCode);
+            if (!target) return alert("존재하지 않는 쿠폰입니다.");
+            if (usedCouponsLocal[target.id]) return alert("이미 사용한 쿠폰입니다.");
+
+            // 쿠폰 적용
+            usedCouponsLocal[target.id] = true;
+            currentMoney += parseInt(target.amount);
             updateDisplay();
-            alert(`쿠폰 적용 완료! +${target.amount}L 지급되었습니다.`);
+            alert(`쿠폰 적용 완료! +${parseInt(target.amount).toLocaleString()}L 지급되었습니다.`);
         }
 
         function openAdminMenu() {
@@ -304,11 +350,11 @@
 
         function renderAdminCoupons() {
             const listEl = document.getElementById('coupon-list-box');
-            if (coupons.length === 0) return listEl.innerHTML = "<div style='color:#777;'>등록된 쿠폰 없음</div>";
-            listEl.innerHTML = coupons.map((c, idx) => `
+            if (coupons.length === 0) return listEl.innerHTML = "<div style='color:#777;'>등록된 공용 쿠폰 없음</div>";
+            listEl.innerHTML = coupons.map((c) => `
                 <div class="coupon-item">
-                    <span><b>${c.code}</b> (+${c.amount}L) ${c.used ? '<span style="color:#f44336;">[사용됨]</span>' : '<span style="color:#4caf50;">[가능]</span>'}</span>
-                    <button class="btn-del" onclick="deleteCoupon(${idx})">삭제</button>
+                    <span><b>${c.code}</b> (+${parseInt(c.amount).toLocaleString()}L)</span>
+                    <button class="btn-del" onclick="deleteCoupon('${c.id}')">삭제</button>
                 </div>
             `).join('');
         }
@@ -317,15 +363,21 @@
             const code = document.getElementById('new-code').value.trim().toUpperCase();
             const amount = parseInt(document.getElementById('new-amount').value);
             if (!code || isNaN(amount) || amount <= 0) return alert('올바른 코드/금액 입력');
-            coupons.push({ code, amount, used: false });
-            saveGameData();
-            renderAdminCoupons();
+
+            if (db) {
+                const newRef = db.ref('coupons').push();
+                newRef.set({ code, amount, createdAt: Date.now() });
+                document.getElementById('new-code').value = '';
+                document.getElementById('new-amount').value = '';
+            } else {
+                alert('DB 연결 상태를 확인해 주세요.');
+            }
         }
 
-        function deleteCoupon(index) {
-            coupons.splice(index, 1);
-            saveGameData();
-            renderAdminCoupons();
+        function deleteCoupon(couponId) {
+            if (db && couponId) {
+                db.ref('coupons/' + couponId).remove();
+            }
         }
 
         function setPlayerMoneyDirect() {
@@ -336,7 +388,7 @@
             }
         }
 
-        /* --- 카드 공통 엔진 및 족보 체크 --- */
+        /* --- 카드 공통 엔진 --- */
         const SUITS = ['S', 'H', 'D', 'C'];
         const SUIT_ICONS = { 'S': '♠', 'H': '♥', 'D': '♦', 'C': '♣' };
         const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -410,9 +462,9 @@
 
             if (sum === predict) {
                 currentMoney += bet * 3;
-                document.getElementById('dice-result').innerText = `적중! (+${bet * 3}L)`;
+                document.getElementById('dice-result').innerText = `적중! (+${(bet * 3).toLocaleString()}L)`;
             } else {
-                document.getElementById('dice-result').innerText = `실패 (-${bet}L)`;
+                document.getElementById('dice-result').innerText = `실패 (-${bet.toLocaleString()}L)`;
             }
             updateDisplay();
         }
@@ -462,9 +514,9 @@
             document.getElementById('bj-controls').style.display = 'none';
             document.getElementById('bj-start-btn').disabled = false;
             const res = document.getElementById('bj-result');
-            if (status === 'win') { currentMoney += bjBet * 2; res.innerText = `승리! (+${bjBet * 2}L)`; }
+            if (status === 'win') { currentMoney += bjBet * 2; res.innerText = `승리! (+${(bjBet * 2).toLocaleString()}L)`; }
             else if (status === 'draw') { currentMoney += bjBet; res.innerText = `무승부`; }
-            else { res.innerText = `패배 (-${bjBet}L)`; }
+            else { res.innerText = `패배 (-${bjBet.toLocaleString()}L)`; }
             updateDisplay();
         }
 
@@ -492,7 +544,7 @@
             const html = (cards) => cards.map(c => (c.hidden && !showAll) ? `<div class="card hidden"><div class="card-rank">?</div></div>` : `<div class="card ${(c.suit==='H'||c.suit==='D')?'red':''}"><div class="card-suit">${SUIT_ICONS[c.suit]}</div><div class="card-rank">${c.rank}</div></div>`).join('');
             document.getElementById('poker-player-cards').innerHTML = html(player7Cards.map(c=>({...c, hidden:false})));
             document.getElementById('poker-dealer-cards').innerHTML = html(dealer7Cards);
-            document.getElementById('poker-pot').innerText = potMoney;
+            document.getElementById('poker-pot').innerText = potMoney.toLocaleString();
         }
         function sevenPokerAction(type) {
             if (!pokerPlaying) return;
@@ -513,7 +565,7 @@
                 document.getElementById('poker-dealer-rank').innerText = dHand.name;
                 if (pHand.score > dHand.score || (pHand.score === dHand.score && pHand.high > dHand.high)) {
                     currentMoney += potMoney;
-                    document.getElementById('poker-result').innerText = `승리 (+${potMoney}L)`;
+                    document.getElementById('poker-result').innerText = `승리 (+${potMoney.toLocaleString()}L)`;
                 } else {
                     document.getElementById('poker-result').innerText = `패배`;
                 }
@@ -545,7 +597,7 @@
             holdemPlayerCards = [holdemDeck.pop(), holdemDeck.pop()];
             holdemDealerCards = [{...holdemDeck.pop(), hidden: true}, {...holdemDeck.pop(), hidden: true}];
             communityCards = [];
-            holdemStep = 0; holdemPlaying = true;
+            holdemStep = 0; holdemPlaying = false;
 
             document.getElementById('holdem-controls').style.display = 'flex';
             document.getElementById('holdem-start-btn').disabled = true;
@@ -562,7 +614,7 @@
             document.getElementById('holdem-community-cards').innerHTML = communityCards.map(cardHTML).join('');
             document.getElementById('holdem-player-cards').innerHTML = holdemPlayerCards.map(cardHTML).join('');
             document.getElementById('holdem-dealer-cards').innerHTML = holdemDealerCards.map(cardHTML).join('');
-            document.getElementById('holdem-pot').innerText = holdemPot;
+            document.getElementById('holdem-pot').innerText = holdemPot.toLocaleString();
         }
 
         function holdemAction(type) {
@@ -574,13 +626,13 @@
             }
 
             holdemStep++;
-            if (holdemStep === 1) { // 플롭 (3장)
+            if (holdemStep === 1) {
                 communityCards.push(holdemDeck.pop(), holdemDeck.pop(), holdemDeck.pop());
                 document.getElementById('holdem-dealer-log').innerText = "플롭: 커뮤니티 카드 3장이 공개되었습니다.";
-            } else if (holdemStep === 2) { // 턴 (1장)
+            } else if (holdemStep === 2) {
                 communityCards.push(holdemDeck.pop());
                 document.getElementById('holdem-dealer-log').innerText = "턴: 커뮤니티 카드 1장이 추가되었습니다.";
-            } else if (holdemStep === 3) { // 리버 (1장)
+            } else if (holdemStep === 3) {
                 communityCards.push(holdemDeck.pop());
                 document.getElementById('holdem-dealer-log').innerText = "리버: 마지막 카드 공개 및 쇼다운!";
             } else {
@@ -593,7 +645,7 @@
 
                 if (pHand.score > dHand.score || (pHand.score === dHand.score && pHand.high > dHand.high)) {
                     currentMoney += holdemPot;
-                    document.getElementById('holdem-result').innerText = `승리 (+${holdemPot}L 획득)`;
+                    document.getElementById('holdem-result').innerText = `승리 (+${holdemPot.toLocaleString()}L 획득)`;
                 } else {
                     document.getElementById('holdem-result').innerText = `패배`;
                 }
@@ -611,7 +663,7 @@
             updateDisplay();
         }
 
-        // 초기 시작 실행
+        // 초기 시작
         updateDisplay();
         applyGameVisibility();
     </script>
