@@ -223,12 +223,13 @@
         let activeGameType = 'dice';
 
         async function syncWithGitHub() {
-            const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}?timestamp=${Date.now()}`;
-            const commentsUrl = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}/comments?timestamp=${Date.now()}`;
+            const timestamp = Date.now();
+            const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}?t=${timestamp}`;
+            const commentsUrl = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}/comments?t=${timestamp}`;
 
             try {
                 // 1. 게임 On/Off 상태 동기화
-                const issueRes = await fetch(url, { headers: { 'Accept': 'application/vnd.github.v3+json' } });
+                const issueRes = await fetch(url, { cache: 'no-store', headers: { 'Accept': 'application/vnd.github.v3+json' } });
                 if (issueRes.ok) {
                     const issueData = await issueRes.json();
                     try {
@@ -241,13 +242,18 @@
 
                 // 2. 쿠폰 목록 동기화
                 const tempCoupons = [];
-                const commentsRes = await fetch(commentsUrl, { headers: { 'Accept': 'application/vnd.github.v3+json' } });
+                const commentsRes = await fetch(commentsUrl, { cache: 'no-store', headers: { 'Accept': 'application/vnd.github.v3+json' } });
                 if (commentsRes.ok) {
                     const comments = await commentsRes.json();
                     comments.forEach(c => {
                         try {
-                            const parsed = JSON.parse(c.body.trim());
-                            if (parsed.code && parsed.amount) {
+                            let text = c.body.trim();
+                            // 혹시 생성 과정에서 개행이나 따옴표 오차가 들어갔을 때 처리
+                            if (text.startsWith('```json')) text = text.replace(/```json|```/g, '').trim();
+                            if (text.startsWith('```')) text = text.replace(/```/g, '').trim();
+
+                            const parsed = JSON.parse(text);
+                            if (parsed && parsed.code && parsed.amount) {
                                 const upperCode = String(parsed.code).trim().toUpperCase();
                                 if (!tempCoupons.some(item => item.code === upperCode)) {
                                     tempCoupons.push({ code: upperCode, amount: parseInt(parsed.amount) });
@@ -303,10 +309,10 @@
             const jsonStr = JSON.stringify(updated);
             navigator.clipboard.writeText(jsonStr).then(() => {
                 alert(`게임 설정이 복사되었습니다!\nGitHub 페이지의 본문(Body)에 붙여넣고 저장하세요:\n\n${jsonStr}`);
-                window.open(`https://github.com/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}`, '_blank');
+                window.open(`[https://github.com/$](https://github.com/$){GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}`, '_blank');
             }).catch(() => {
                 prompt("아래 텍스트를 복사해 GitHub 이슈 본문에 붙여넣으세요:", jsonStr);
-                window.open(`https://github.com/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}`, '_blank');
+                window.open(`[https://github.com/$](https://github.com/$){GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}`, '_blank');
             });
         }
 
@@ -391,7 +397,7 @@
             const jsonString = JSON.stringify({ code: code, amount: amount });
             navigator.clipboard.writeText(jsonString).then(() => {
                 alert(`쿠폰 데이터가 복사되었습니다!\nGitHub 페이지 댓글란에 붙여넣기 후 [Comment]를 누르면 적용됩니다.`);
-                window.open(`https://github.com/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}`, '_blank');
+                window.open(`[https://github.com/$](https://github.com/$){GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}`, '_blank');
             });
 
             codeInput.value = '';
