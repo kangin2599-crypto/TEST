@@ -54,7 +54,6 @@
 
         .game-toggle-box { display: flex; flex-direction: column; gap: 6px; background: #222; padding: 8px; border-radius: 4px; margin-bottom: 10px; }
         .toggle-item { display: flex; justify-content: space-between; align-items: center; }
-        .api-status { font-size: 11px; color: #ff6b6b; margin-top: 4px; display: none; }
     </style>
 </head>
 <body>
@@ -70,15 +69,20 @@
             </div>
         </div>
 
-        <div id="api-alert" class="api-status">⚠️ GitHub API 호출 제한 초과. 토큰 설정이 필요합니다.</div>
-
         <!-- 관리자 메뉴 영역 -->
         <div id="admin-section" class="admin-panel">
-            <h4>GitHub Personal Token 설정 (API 제한 해제용)</h4>
-            <div style="display: flex; gap: 4px; margin-bottom: 10px;">
-                <input type="password" id="gh-token-input" placeholder="ghp_xxxx..." style="flex:1; padding:4px; background:#222; color:#fff; border:1px solid #444;">
-                <button class="btn-header" onclick="saveGitHubToken()">토큰 저장</button>
+            <h4>GitHub 연동 설정 (최초 1회, 이 기기에만 저장)</h4>
+            <div class="notice-text">
+                토큰을 등록하면 아래 "쿠폰 발행/삭제"와 "게임 설정"이 GitHub 페이지로 이동할 필요 없이 이 사이트 안에서 바로 반영됩니다.<br>
+                <a href="https://github.com/settings/tokens?type=beta" target="_blank" style="color:#8ab4f8;">Fine-grained Token 발급 페이지</a>에서
+                Repository access를 이 저장소(<b id="repo-name-hint"></b>) 하나로 제한하고, Permissions → Issues를 "Read and write"로 설정해 발급한 뒤 아래에 붙여넣으세요.
             </div>
+            <div style="display: flex; gap: 4px; margin-bottom: 6px;">
+                <input type="password" id="gh-token-input" placeholder="GitHub Token 붙여넣기" style="flex:1; padding: 4px; font-size: 12px; background:#222; color:#fff; border:1px solid #444;">
+                <button class="btn-header" onclick="saveGithubToken()">저장</button>
+                <button class="btn-header" onclick="clearGithubToken()">삭제</button>
+            </div>
+            <div id="token-status" style="font-size:11px; color:#888; margin-bottom:14px;"></div>
 
             <h4>게임 활성화 / 비활성화 (전체 적용)</h4>
             <div class="game-toggle-box">
@@ -87,10 +91,12 @@
                 <div class="toggle-item"><span>세븐포커</span><input type="checkbox" id="toggle-poker"></div>
                 <div class="toggle-item"><span>홀덤</span><input type="checkbox" id="toggle-holdem"></div>
             </div>
-            <button class="btn-header" style="width:100%; margin-bottom:10px;" onclick="updateGameStatus()">게임을 설정(GitHub 적용)</button>
+            <button class="btn-header" style="width:100%; margin-bottom:10px;" onclick="updateGameStatus()">게임 설정 저장 (즉시 전체 반영)</button>
 
             <h4>전체 기기 공용 쿠폰 목록</h4>
-            <div class="coupon-list" id="coupon-list-box">불러오는 중...</div>
+            <div class="coupon-list" id="coupon-list-box">GitHub 불러오는 중...</div>
+            
+            <div class="notice-text">* 토큰이 등록되어 있으면 아래에서 발행/삭제 버튼을 누르는 즉시 모든 사용자에게 반영됩니다.</div>
             
             <div style="display: flex; gap: 4px; margin-bottom: 8px;">
                 <input type="text" id="new-code" placeholder="쿠폰 코드" style="flex:1; padding: 4px; font-size: 12px; background:#222; color:#fff; border:1px solid #444;">
@@ -217,81 +223,84 @@
         const GITHUB_CONFIG = {
             owner: "kangin2599-crypto",
             repo: "TEST",
-            issueNumber: 1,
-            // 여기에 Personal Access Token(PAT)을 직접 넣으시면 403 제한이 즉시 해제됩니다.
-            token: localStorage.getItem('gh_token') || "" 
+            issueNumber: 1
         };
 
         const ADMIN_PASSWORD = "kangin2599!";
         const DEFAULT_MONEY = 1000000;
 
         let currentMoney = parseInt(localStorage.getItem('casino_money')) || DEFAULT_MONEY;
-        let coupons = JSON.parse(localStorage.getItem('casino_cached_coupons')) || [];
+        let coupons = [];
         let usedCouponsLocal = JSON.parse(localStorage.getItem('casino_used_coupons')) || {};
         let gameStatus = { dice: true, bj: true, poker: true, holdem: true };
         let activeGameType = 'dice';
 
-        function saveGitHubToken() {
-            const token = document.getElementById('gh-token-input').value.trim();
-            if(token) {
-                localStorage.setItem('gh_token', token);
-                GITHUB_CONFIG.token = token;
-                alert("GitHub 토큰이 저장되었습니다!");
-                syncWithGitHub();
-            }
+        /* --- GitHub 토큰 관리 --- */
+        const GH_TOKEN_KEY = 'casino_gh_token';
+        function saveGithubToken() {
+            const t = document.getElementById('gh-token-input').value.trim();
+            if (!t) return alert('토큰을 입력해 주세요.');
+            localStorage.setItem(GH_TOKEN_KEY, t);
+            document.getElementById('gh-token-input').value = '';
+            updateTokenStatus();
+            alert('토큰이 이 브라우저에 저장되었습니다.');
+        }
+        function clearGithubToken() {
+            localStorage.removeItem(GH_TOKEN_KEY);
+            updateTokenStatus();
+        }
+        function getGithubToken() {
+            return localStorage.getItem(GH_TOKEN_KEY) || '';
+        }
+        function updateTokenStatus() {
+            const el = document.getElementById('token-status');
+            const hint = document.getElementById('repo-name-hint');
+            if (hint) hint.innerText = `${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}`;
+            if (!el) return;
+            el.innerText = getGithubToken() ? '✅ 토큰 등록됨 (자동 발행/삭제 가능)' : '⚠️ 토큰 미등록 — 등록 전까지는 자동 반영이 되지 않습니다.';
         }
 
         async function syncWithGitHub() {
-            const timestamp = Date.now();
-            const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}?t=${timestamp}`;
-            const commentsUrl = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}/comments?t=${timestamp}`;
-
-            const headers = { 'Accept': 'application/vnd.github.v3+json' };
-            if (GITHUB_CONFIG.token) {
-                headers['Authorization'] = `token ${GITHUB_CONFIG.token}`;
-            }
+            const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}?timestamp=${Date.now()}`;
+            const commentsUrl = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}/comments?timestamp=${Date.now()}`;
 
             try {
-                // 1. 이슈 본문 읽기
-                const issueRes = await fetch(url, { cache: 'no-store', headers });
-                if (issueRes.status === 403) {
-                    document.getElementById('api-alert').style.display = 'block';
-                } else if (issueRes.ok) {
-                    document.getElementById('api-alert').style.display = 'none';
+                // 1. 게임 On/Off 상태 동기화
+                const issueRes = await fetch(url, { headers: { 'Accept': 'application/vnd.github.v3+json' } });
+                if (issueRes.ok) {
                     const issueData = await issueRes.json();
                     try {
                         const parsed = JSON.parse(issueData.body.trim());
-                        if (parsed && typeof parsed.dice === 'boolean') gameStatus = parsed;
+                        if (parsed && typeof parsed.dice === 'boolean') {
+                            gameStatus = parsed;
+                        }
                     } catch(e) {}
                 }
 
-                // 2. 댓글 (쿠폰) 읽기
-                const commentsRes = await fetch(commentsUrl, { cache: 'no-store', headers });
+                // 2. 쿠폰 목록 동기화 (댓글 ID 포함)
+                const tempCoupons = [];
+                const commentsRes = await fetch(commentsUrl, { headers: { 'Accept': 'application/vnd.github.v3+json' } });
                 if (commentsRes.ok) {
                     const comments = await commentsRes.json();
-                    const tempCoupons = [];
                     comments.forEach(c => {
                         try {
-                            let text = c.body.trim();
-                            if (text.startsWith('```json')) text = text.replace(/```json|```/g, '').trim();
-                            if (text.startsWith('```')) text = text.replace(/```/g, '').trim();
-
-                            const parsed = JSON.parse(text);
-                            if (parsed && parsed.code && parsed.amount) {
+                            const parsed = JSON.parse(c.body.trim());
+                            if (parsed.code && parsed.amount) {
                                 const upperCode = String(parsed.code).trim().toUpperCase();
                                 if (!tempCoupons.some(item => item.code === upperCode)) {
-                                    tempCoupons.push({ code: upperCode, amount: parseInt(parsed.amount) });
+                                    tempCoupons.push({ 
+                                        commentId: c.id, 
+                                        code: upperCode, 
+                                        amount: parseInt(parsed.amount) 
+                                    });
                                 }
                             }
                         } catch(e) {}
                     });
-                    if(tempCoupons.length > 0) {
-                        coupons = tempCoupons;
-                        localStorage.setItem('casino_cached_coupons', JSON.stringify(coupons));
-                    }
                 }
+                coupons = tempCoupons;
             } catch (err) {
-                console.error("동기화 에러:", err);
+                console.error("GitHub 동기화 오류", err);
             }
 
             applyGameStatusUI();
@@ -325,7 +334,10 @@
             }
         }
 
-        function updateGameStatus() {
+        async function updateGameStatus() {
+            const token = getGithubToken();
+            if (!token) return alert('먼저 위쪽에서 GitHub 토큰을 등록해 주세요.');
+
             const updated = {
                 dice: document.getElementById('toggle-dice').checked,
                 bj: document.getElementById('toggle-bj').checked,
@@ -333,14 +345,27 @@
                 holdem: document.getElementById('toggle-holdem').checked
             };
 
-            const jsonStr = JSON.stringify(updated);
-            navigator.clipboard.writeText(jsonStr).then(() => {
-                alert(`게임 설정이 복사되었습니다!\nGitHub 이슈 본문에 붙여넣고 저장해 주세요:\n\n${jsonStr}`);
-                window.open(`[https://github.com/$](https://github.com/$){GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}`, '_blank');
-            }).catch(() => {
-                prompt("아래 텍스트를 복사해 GitHub 이슈 본문에 붙여넣으세요:", jsonStr);
-                window.open(`[https://github.com/$](https://github.com/$){GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}`, '_blank');
-            });
+            const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}`;
+            try {
+                const res = await fetch(url, {
+                    method: 'PATCH',
+                    headers: {
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Authorization': `token ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ body: JSON.stringify(updated) })
+                });
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.message || `HTTP ${res.status}`);
+                }
+                gameStatus = updated;
+                applyGameStatusUI();
+                alert('게임 설정이 저장되어 모든 사용자에게 즉시 반영됩니다.');
+            } catch (err) {
+                alert(`설정 저장 실패: ${err.message}`);
+            }
         }
 
         function saveGameData() {
@@ -377,7 +402,7 @@
             const cleanCode = inputCode.trim().toUpperCase();
 
             const target = coupons.find(c => c.code === cleanCode);
-            if (!target) return alert("존재하지 않거나 불러오지 못한 쿠폰입니다.");
+            if (!target) return alert("존재하지 않는 쿠폰입니다.");
             if (usedCouponsLocal[cleanCode]) return alert("이미 사용한 쿠폰입니다.");
 
             usedCouponsLocal[cleanCode] = true;
@@ -389,6 +414,7 @@
         async function openAdminMenu() {
             if (prompt("관리자 비밀번호를 입력하세요:") === ADMIN_PASSWORD) {
                 document.getElementById('admin-section').style.display = 'block';
+                updateTokenStatus();
                 await syncWithGitHub();
             } else {
                 alert("비밀번호가 올바르지 않습니다.");
@@ -403,17 +429,21 @@
             const listEl = document.getElementById('coupon-list-box');
             if (!listEl) return;
             if (coupons.length === 0) {
-                listEl.innerHTML = "<div style='color:#777;'>쿠폰 없음</div>";
+                listEl.innerHTML = "<div style='color:#777;'>공용 등록된 쿠폰 없음</div>";
                 return;
             }
             listEl.innerHTML = coupons.map((c) => `
                 <div class="coupon-item">
                     <span><b>${c.code}</b> (+${parseInt(c.amount).toLocaleString()}L)</span>
+                    <button class="btn-header" style="padding: 2px 6px; font-size:10px; background:#d32f2f; border:none;" onclick="deleteCoupon(${c.commentId}, '${c.code}')">삭제</button>
                 </div>
             `).join('');
         }
 
-        function addCoupon() {
+        async function addCoupon() {
+            const token = getGithubToken();
+            if (!token) return alert('먼저 위쪽에서 GitHub 토큰을 등록해 주세요.');
+
             const codeInput = document.getElementById('new-code');
             const amountInput = document.getElementById('new-amount');
             const code = codeInput.value.trim().toUpperCase();
@@ -421,22 +451,55 @@
 
             if (!code || isNaN(amount) || amount <= 0) return alert('올바른 코드와 금액을 입력해 주세요.');
 
-            const jsonString = JSON.stringify({ code: code, amount: amount });
-            
-            // 로컬 수동 반영 (API 차단 시에도 바로 추가 가능하도록)
-            if(!coupons.some(c => c.code === code)) {
-                coupons.push({ code: code, amount: amount });
-                localStorage.setItem('casino_cached_coupons', JSON.stringify(coupons));
-                renderAdminCoupons();
+            const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}/comments`;
+            try {
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Authorization': `token ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ body: JSON.stringify({ code: code, amount: amount }) })
+                });
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.message || `HTTP ${res.status}`);
+                }
+                codeInput.value = '';
+                amountInput.value = '';
+                await syncWithGitHub();
+                alert(`쿠폰 [${code}] 발행 완료! 모든 사용자에게 즉시 반영됩니다.`);
+            } catch (err) {
+                alert(`쿠폰 발행 실패: ${err.message}`);
             }
+        }
 
-            navigator.clipboard.writeText(jsonString).then(() => {
-                alert(`쿠폰이 복사되었습니다!\nGitHub 이슈 댓글란에 [Comment]로 등록하세요.`);
-                window.open(`[https://github.com/$](https://github.com/$){GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}`, '_blank');
-            });
+        // 쿠폰 삭제 기능 추가
+        async function deleteCoupon(commentId, code) {
+            const token = getGithubToken();
+            if (!token) return alert('먼저 위쪽에서 GitHub 토큰을 등록해 주세요.');
 
-            codeInput.value = '';
-            amountInput.value = '';
+            if (!confirm(`정말 [${code}] 쿠폰을 삭제하시겠습니까?`)) return;
+
+            const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/comments/${commentId}`;
+            try {
+                const res = await fetch(url, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Authorization': `token ${token}`
+                    }
+                });
+                if (!res.ok && res.status !== 204) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.message || `HTTP ${res.status}`);
+                }
+                await syncWithGitHub();
+                alert(`쿠폰 [${code}]이 삭제되었습니다.`);
+            } catch (err) {
+                alert(`쿠폰 삭제 실패: ${err.message}`);
+            }
         }
 
         function setPlayerMoneyDirect() {
@@ -447,7 +510,7 @@
             }
         }
 
-        /* --- 게임 관련 표준 카드 로직 --- */
+        /* --- 카드 및 게임 관련 로직 --- */
         const SUITS = ['S', 'H', 'D', 'C'];
         const SUIT_ICONS = { 'S': '♠', 'H': '♥', 'D': '♦', 'C': '♣' };
         const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -507,7 +570,7 @@
             return best;
         }
 
-        /* 주사위 */
+        /* 1. 주사위 기능 */
         function playDice() {
             const bet = parseInt(document.getElementById('diceBet').value);
             const predict = parseInt(document.getElementById('predictSum').value);
@@ -528,7 +591,7 @@
             updateDisplay();
         }
 
-        /* 블랙잭 */
+        /* 2. 블랙잭 기능 */
         let playerCards = [], dealerCards = [], bjBet = 0, bjPlaying = false;
         function getCard() { return Math.floor(Math.random() * 10) + 1; }
         function calcScore(cards) { return cards.reduce((a, b) => a + b, 0); }
@@ -579,7 +642,7 @@
             updateDisplay();
         }
 
-        /* 세븐 포커 */
+        /* 3. 세븐포커 기능 */
         let pokerDeck = [], player7Cards = [], dealer7Cards = [], potMoney = 0, baseBet = 0, pokerRound = 0, pokerPlaying = false;
         function startSevenPoker() {
             if (pokerPlaying) return;
@@ -639,7 +702,7 @@
             updateDisplay();
         }
 
-        /* 홀덤 */
+        /* 4. 홀덤 기능 */
         let holdemDeck = [], communityCards = [], holdemPlayerCards = [], holdemDealerCards = [];
         let holdemPot = 0, holdemBetVal = 0, holdemStep = 0, holdemPlaying = false;
 
@@ -722,6 +785,7 @@
             updateDisplay();
         }
 
+        // 초기화 시 동작
         window.onload = function() {
             updateDisplay();
             switchGame('dice');
