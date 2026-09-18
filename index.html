@@ -325,12 +325,18 @@
             if (!inputCode) return;
             const cleanCode = inputCode.trim().toUpperCase();
 
+            // 쿠폰 존재 여부 체크
             const target = coupons.find(c => c.code === cleanCode);
             if (!target) return alert("존재하지 않는 쿠폰입니다.");
-            if (usedCouponsLocal[target.id]) return alert("이미 사용한 쿠폰입니다.");
+
+            // 이미 사용한 쿠폰 검증
+            if (usedCouponsLocal[target.id] || usedCouponsLocal[cleanCode]) {
+                return alert("이미 사용한 쿠폰입니다.");
+            }
 
             // 쿠폰 적용
             usedCouponsLocal[target.id] = true;
+            usedCouponsLocal[cleanCode] = true; // 안전 장치 추가
             currentMoney += parseInt(target.amount);
             updateDisplay();
             alert(`쿠폰 적용 완료! +${parseInt(target.amount).toLocaleString()}L 지급되었습니다.`);
@@ -350,6 +356,7 @@
 
         function renderAdminCoupons() {
             const listEl = document.getElementById('coupon-list-box');
+            if (!listEl) return;
             if (coupons.length === 0) return listEl.innerHTML = "<div style='color:#777;'>등록된 공용 쿠폰 없음</div>";
             listEl.innerHTML = coupons.map((c) => `
                 <div class="coupon-item">
@@ -359,16 +366,34 @@
             `).join('');
         }
 
+        // [수정 완료된 쿠폰 생성 함수]
         function addCoupon() {
-            const code = document.getElementById('new-code').value.trim().toUpperCase();
-            const amount = parseInt(document.getElementById('new-amount').value);
-            if (!code || isNaN(amount) || amount <= 0) return alert('올바른 코드/금액 입력');
+            const codeInput = document.getElementById('new-code');
+            const amountInput = document.getElementById('new-amount');
+            const code = codeInput.value.trim().toUpperCase();
+            const amount = parseInt(amountInput.value);
+
+            if (!code || isNaN(amount) || amount <= 0) return alert('올바른 코드와 금액을 입력해 주세요.');
 
             if (db) {
+                // Firebase DB에 Unique ID Key와 함께 데이터 생성
                 const newRef = db.ref('coupons').push();
-                newRef.set({ code, amount, createdAt: Date.now() });
-                document.getElementById('new-code').value = '';
-                document.getElementById('new-amount').value = '';
+                const newCouponData = {
+                    id: newRef.key,
+                    code: code,
+                    amount: amount,
+                    createdAt: Date.now()
+                };
+
+                newRef.set(newCouponData, (error) => {
+                    if (error) {
+                        alert('쿠폰 생성에 실패했습니다: ' + error.message);
+                    } else {
+                        alert(`[${code}] 쿠폰이 정상적으로 생성되었습니다!`);
+                        codeInput.value = '';
+                        amountInput.value = '';
+                    }
+                });
             } else {
                 alert('DB 연결 상태를 확인해 주세요.');
             }
@@ -597,7 +622,7 @@
             holdemPlayerCards = [holdemDeck.pop(), holdemDeck.pop()];
             holdemDealerCards = [{...holdemDeck.pop(), hidden: true}, {...holdemDeck.pop(), hidden: true}];
             communityCards = [];
-            holdemStep = 0; holdemPlaying = false;
+            holdemStep = 0; holdemPlaying = true;
 
             document.getElementById('holdem-controls').style.display = 'flex';
             document.getElementById('holdem-start-btn').disabled = true;
