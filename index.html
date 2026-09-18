@@ -48,7 +48,7 @@
 
         .admin-panel { background: #121212; border: 1px solid #555; padding: 12px; border-radius: 8px; margin-bottom: 12px; text-align: left; font-size: 12px; display: none; }
         .admin-panel h4 { margin: 0 0 8px 0; color: #fff; border-bottom: 1px solid #333; padding-bottom: 4px; }
-        .coupon-list { max-height: 100px; overflow-y: auto; margin-bottom: 8px; background: #222; padding: 6px; border-radius: 4px; }
+        .coupon-list { max-height: 120px; overflow-y: auto; margin-bottom: 8px; background: #222; padding: 6px; border-radius: 4px; }
         .coupon-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #333; }
         .notice-text { font-size: 11px; color: #aaa; margin-bottom: 8px; line-height: 1.3; }
 
@@ -240,7 +240,7 @@
                 }
 
                 // 2. 쿠폰 목록 동기화
-                coupons = [];
+                const tempCoupons = [];
                 const commentsRes = await fetch(commentsUrl, { headers: { 'Accept': 'application/vnd.github.v3+json' } });
                 if (commentsRes.ok) {
                     const comments = await commentsRes.json();
@@ -249,13 +249,14 @@
                             const parsed = JSON.parse(c.body.trim());
                             if (parsed.code && parsed.amount) {
                                 const upperCode = String(parsed.code).trim().toUpperCase();
-                                if (!coupons.some(item => item.code === upperCode)) {
-                                    coupons.push({ code: upperCode, amount: parseInt(parsed.amount) });
+                                if (!tempCoupons.some(item => item.code === upperCode)) {
+                                    tempCoupons.push({ code: upperCode, amount: parseInt(parsed.amount) });
                                 }
                             }
                         } catch(e) {}
                     });
                 }
+                coupons = tempCoupons;
             } catch (err) {
                 console.error("GitHub 동기화 오류", err);
             }
@@ -352,10 +353,10 @@
             alert(`쿠폰 적용 완료! +${parseInt(target.amount).toLocaleString()}L 지급되었습니다.`);
         }
 
-        function openAdminMenu() {
+        async function openAdminMenu() {
             if (prompt("관리자 비밀번호를 입력하세요:") === ADMIN_PASSWORD) {
                 document.getElementById('admin-section').style.display = 'block';
-                syncWithGitHub();
+                await syncWithGitHub();
             } else {
                 alert("비밀번호가 올바르지 않습니다.");
             }
@@ -368,7 +369,10 @@
         function renderAdminCoupons() {
             const listEl = document.getElementById('coupon-list-box');
             if (!listEl) return;
-            if (coupons.length === 0) return listEl.innerHTML = "<div style='color:#777;'>공용 등록된 쿠폰 없음</div>";
+            if (coupons.length === 0) {
+                listEl.innerHTML = "<div style='color:#777;'>공용 등록된 쿠폰 없음</div>";
+                return;
+            }
             listEl.innerHTML = coupons.map((c) => `
                 <div class="coupon-item">
                     <span><b>${c.code}</b> (+${parseInt(c.amount).toLocaleString()}L)</span>
