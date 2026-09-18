@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>test</title>
-    <!-- Firebase SDK (Compat v10) -->
+    <!-- Firebase SDK (v10 Compat) -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     <style>
@@ -207,20 +207,23 @@
 
     <script>
         const ADMIN_PASSWORD = "kangin2599!";
-        const DEFAULT_MONEY = 1000000; // 기본 금액 1,000,000 L
+        const DEFAULT_MONEY = 1000000;
 
-        // 전용 공용 Firebase Realtime Database 연동
+        // Firebase 초기화
         const firebaseConfig = {
             databaseURL: "https://casino-shared-db-default-rtdb.asia-southeast1.firebasedatabase.app"
         };
         
         let db = null;
         try {
-            firebase.initializeApp(firebaseConfig);
+            if (!firebase.apps.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
             db = firebase.database();
-        } catch(e) { console.log(e); }
+        } catch(e) { 
+            console.error("Firebase 초기화 에러:", e); 
+        }
 
-        // 기본 로컬 데이터 설정 (최초 접속 시 1,000,000 L 부여)
         let currentMoney = parseInt(localStorage.getItem('casino_money'));
         if (isNaN(currentMoney)) {
             currentMoney = DEFAULT_MONEY;
@@ -230,9 +233,8 @@
         let usedCouponsLocal = JSON.parse(localStorage.getItem('casino_used_coupons')) || {};
         let gameActiveSettings = { dice: true, bj: true, poker: true, holdem: true };
 
-        // Firebase 실시간 동기화 (모든 접속자 실시간 공유)
+        // Firebase 실시간 동기화
         if (db) {
-            // 1. 공용 쿠폰 데이터 실시간 수신
             db.ref('coupons').on('value', (snapshot) => {
                 const data = snapshot.val();
                 coupons = [];
@@ -242,9 +244,8 @@
                     });
                 }
                 renderAdminCoupons();
-            });
+            }, (err) => console.error("Database 오류:", err));
 
-            // 2. 공용 게임 ON/OFF 설정 실시간 수신
             db.ref('game_settings').on('value', (snapshot) => {
                 const data = snapshot.val();
                 if (data) {
@@ -265,7 +266,6 @@
             saveGameData();
         }
 
-        /* --- 게임 활성화 및 동기화 --- */
         function applyGameVisibility() {
             const games = ['dice', 'bj', 'poker', 'holdem'];
             let activeTabFound = false;
@@ -319,24 +319,21 @@
             });
         }
 
-        /* --- 쿠폰 및 관리자 메뉴 --- */
+        /* --- 쿠폰 및 관리자 기능 --- */
         function useCouponModal() {
             const inputCode = prompt("쿠폰 코드를 입력하세요:");
             if (!inputCode) return;
             const cleanCode = inputCode.trim().toUpperCase();
 
-            // 쿠폰 존재 여부 체크
             const target = coupons.find(c => c.code === cleanCode);
             if (!target) return alert("존재하지 않는 쿠폰입니다.");
 
-            // 이미 사용한 쿠폰 검증
             if (usedCouponsLocal[target.id] || usedCouponsLocal[cleanCode]) {
                 return alert("이미 사용한 쿠폰입니다.");
             }
 
-            // 쿠폰 적용
             usedCouponsLocal[target.id] = true;
-            usedCouponsLocal[cleanCode] = true; // 안전 장치 추가
+            usedCouponsLocal[cleanCode] = true;
             currentMoney += parseInt(target.amount);
             updateDisplay();
             alert(`쿠폰 적용 완료! +${parseInt(target.amount).toLocaleString()}L 지급되었습니다.`);
@@ -366,17 +363,22 @@
             `).join('');
         }
 
-        // [수정 완료된 쿠폰 생성 함수]
-        function addCoupon() {
+        // [수정된 쿠폰 생성 함수]
+        async function addCoupon() {
             const codeInput = document.getElementById('new-code');
             const amountInput = document.getElementById('new-amount');
             const code = codeInput.value.trim().toUpperCase();
             const amount = parseInt(amountInput.value);
 
-            if (!code || isNaN(amount) || amount <= 0) return alert('올바른 코드와 금액을 입력해 주세요.');
+            if (!code || isNaN(amount) || amount <= 0) {
+                return alert('올바른 코드와 금액을 입력해 주세요.');
+            }
 
-            if (db) {
-                // Firebase DB에 Unique ID Key와 함께 데이터 생성
+            if (!db) {
+                return alert('데이터베이스 연결에 실패했습니다. 페이지를 새로고침 해보세요.');
+            }
+
+            try {
                 const newRef = db.ref('coupons').push();
                 const newCouponData = {
                     id: newRef.key,
@@ -385,17 +387,13 @@
                     createdAt: Date.now()
                 };
 
-                newRef.set(newCouponData, (error) => {
-                    if (error) {
-                        alert('쿠폰 생성에 실패했습니다: ' + error.message);
-                    } else {
-                        alert(`[${code}] 쿠폰이 정상적으로 생성되었습니다!`);
-                        codeInput.value = '';
-                        amountInput.value = '';
-                    }
-                });
-            } else {
-                alert('DB 연결 상태를 확인해 주세요.');
+                await newRef.set(newCouponData);
+                alert(`[${code}] 쿠폰이 정상적으로 생성되었습니다!`);
+                codeInput.value = '';
+                amountInput.value = '';
+            } catch (error) {
+                console.error("쿠폰 생성 에러:", error);
+                alert("쿠폰 생성 실패: " + error.message);
             }
         }
 
@@ -413,7 +411,7 @@
             }
         }
 
-        /* --- 카드 공통 엔진 --- */
+        /* --- 카드 게임 공통 로직 --- */
         const SUITS = ['S', 'H', 'D', 'C'];
         const SUIT_ICONS = { 'S': '♠', 'H': '♥', 'D': '♦', 'C': '♣' };
         const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -688,7 +686,6 @@
             updateDisplay();
         }
 
-        // 초기 시작
         updateDisplay();
         applyGameVisibility();
     </script>
