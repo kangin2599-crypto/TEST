@@ -193,6 +193,7 @@
     </div>
 
     <script>
+        // 본인 GitHub 아이디, 저장소 이름, 이슈 번호로 수정하세요.
         const GITHUB_CONFIG = {
             owner: "본인_GitHub_아이디",
             repo: "본인_저장소_이름",
@@ -209,26 +210,38 @@
 
         async function fetchGitHubCoupons() {
             coupons = [...localCoupons];
-            try {
-                if (GITHUB_CONFIG.owner !== "본인_GitHub_아이디") {
-                    const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}/comments`;
-                    const response = await fetch(url);
+            
+            if (GITHUB_CONFIG.owner && GITHUB_CONFIG.owner !== "본인_GitHub_아이디") {
+                const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}/comments`;
+                
+                try {
+                    const response = await fetch(url, {
+                        headers: { 'Accept': 'application/vnd.github.v3+json' }
+                    });
+
                     if (response.ok) {
                         const comments = await response.json();
                         comments.forEach(c => {
                             try {
-                                const parsed = JSON.parse(c.body);
+                                const bodyText = c.body.trim();
+                                const parsed = JSON.parse(bodyText);
+                                
                                 if (parsed.code && parsed.amount) {
-                                    if (!coupons.some(item => item.code === parsed.code)) {
-                                        coupons.push({ code: parsed.code, amount: parsed.amount });
+                                    const upperCode = String(parsed.code).trim().toUpperCase();
+                                    if (!coupons.some(item => item.code === upperCode)) {
+                                        coupons.push({ code: upperCode, amount: parseInt(parsed.amount) });
                                     }
                                 }
-                            } catch(e) {}
+                            } catch(e) {
+                                // JSON 형식이 아닌 일반 댓글은 무시
+                            }
                         });
+                    } else {
+                        console.warn("GitHub API 응답 오류 코드:", response.status);
                     }
+                } catch (err) {
+                    console.error("GitHub API 불러오기 실패:", err);
                 }
-            } catch (err) {
-                console.error("GitHub API 불러오기 예외:", err);
             }
             renderAdminCoupons();
         }
@@ -287,7 +300,7 @@
             const listEl = document.getElementById('coupon-list-box');
             if (!listEl) return;
             if (coupons.length === 0) return listEl.innerHTML = "<div style='color:#777;'>등록된 공용 쿠폰 없음</div>";
-            listEl.innerHTML = coupons.map((c, idx) => `
+            listEl.innerHTML = coupons.map((c) => `
                 <div class="coupon-item">
                     <span><b>${c.code}</b> (+${parseInt(c.amount).toLocaleString()}L)</span>
                     <button class="btn-del" onclick="deleteLocalCoupon('${c.code}')">삭제</button>
@@ -306,7 +319,7 @@
             }
 
             if (coupons.some(c => c.code === code)) {
-                return alert('이미 존재하 쿠폰 코드입니다.');
+                return alert('이미 존재하는 쿠폰 코드입니다.');
             }
 
             localCoupons.push({ code, amount });
@@ -315,7 +328,7 @@
 
             codeInput.value = '';
             amountInput.value = '';
-            alert(`쿠폰 [${code}]이(가) 즉시 생성되었습니다.`);
+            alert(`쿠폰 [${code}]이(가) 로컬에 생성되었습니다.`);
         }
 
         function deleteLocalCoupon(code) {
@@ -537,7 +550,7 @@
             holdemPlayerCards = [holdemDeck.pop(), holdemDeck.pop()];
             holdemDealerCards = [{...holdemDeck.pop(), hidden: true}, {...holdemDeck.pop(), hidden: true}];
             communityCards = [];
-            holdemStep = 0; holdemPlaying = true;
+            holdemStep = 0; holdemPlaying = false;
 
             document.getElementById('holdem-controls').style.display = 'flex';
             document.getElementById('holdem-start-btn').disabled = true;
