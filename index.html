@@ -73,9 +73,10 @@
         <div id="admin-section" class="admin-panel">
             <h4>GitHub 연동 설정 (최초 1회, 이 기기에만 저장)</h4>
             <div class="notice-text">
-                토큰을 등록하면 아래 "쿠폰 발행/삭제"와 "게임 설정"이 GitHub 페이지로 이동할 필요 없이 이 사이트 안에서 바로 반영됩니다.<br>
+                토큰을 등록하면 아래 "쿠폰 발행"과 "게임 설정"이 GitHub 페이지로 이동할 필요 없이 이 사이트 안에서 바로 반영됩니다.<br>
                 <a href="https://github.com/settings/tokens?type=beta" target="_blank" style="color:#8ab4f8;">Fine-grained Token 발급 페이지</a>에서
                 Repository access를 이 저장소(<b id="repo-name-hint"></b>) 하나로 제한하고, Permissions → Issues를 "Read and write"로 설정해 발급한 뒤 아래에 붙여넣으세요.
+                이 토큰은 서버로 전송되지 않고 <b>이 브라우저에만</b> 저장되니, 공용/타인 컴퓨터에서는 등록하지 마세요.
             </div>
             <div style="display: flex; gap: 4px; margin-bottom: 6px;">
                 <input type="password" id="gh-token-input" placeholder="GitHub Token 붙여넣기" style="flex:1; padding: 4px; font-size: 12px; background:#222; color:#fff; border:1px solid #444;">
@@ -96,7 +97,7 @@
             <h4>전체 기기 공용 쿠폰 목록</h4>
             <div class="coupon-list" id="coupon-list-box">GitHub 불러오는 중...</div>
             
-            <div class="notice-text">* 토큰이 등록되어 있으면 아래에서 발행/삭제 버튼을 누르는 즉시 모든 사용자에게 반영됩니다.</div>
+            <div class="notice-text">* 토큰이 등록되어 있으면 아래에서 발행 버튼을 누르는 즉시 모든 사용자에게 반영됩니다. (GitHub 페이지 이동 불필요)</div>
             
             <div style="display: flex; gap: 4px; margin-bottom: 8px;">
                 <input type="text" id="new-code" placeholder="쿠폰 코드" style="flex:1; padding: 4px; font-size: 12px; background:#222; color:#fff; border:1px solid #444;">
@@ -235,7 +236,7 @@
         let gameStatus = { dice: true, bj: true, poker: true, holdem: true };
         let activeGameType = 'dice';
 
-        /* --- GitHub 토큰 관리 --- */
+        /* --- GitHub 토큰 관리 (이 브라우저에만 저장, 서버로 전송되지 않음) --- */
         const GH_TOKEN_KEY = 'casino_gh_token';
         function saveGithubToken() {
             const t = document.getElementById('gh-token-input').value.trim();
@@ -243,7 +244,7 @@
             localStorage.setItem(GH_TOKEN_KEY, t);
             document.getElementById('gh-token-input').value = '';
             updateTokenStatus();
-            alert('토큰이 이 브라우저에 저장되었습니다.');
+            alert('토큰이 이 브라우저에 저장되었습니다. 이제 쿠폰 발행/게임 설정이 사이트 안에서 바로 반영됩니다.');
         }
         function clearGithubToken() {
             localStorage.removeItem(GH_TOKEN_KEY);
@@ -257,7 +258,7 @@
             const hint = document.getElementById('repo-name-hint');
             if (hint) hint.innerText = `${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}`;
             if (!el) return;
-            el.innerText = getGithubToken() ? '✅ 토큰 등록됨 (자동 발행/삭제 가능)' : '⚠️ 토큰 미등록 — 등록 전까지는 자동 반영이 되지 않습니다.';
+            el.innerText = getGithubToken() ? '✅ 토큰 등록됨 (자동 반영 가능)' : '⚠️ 토큰 미등록 — 등록 전까지는 자동 반영이 되지 않습니다.';
         }
 
         async function syncWithGitHub() {
@@ -277,7 +278,7 @@
                     } catch(e) {}
                 }
 
-                // 2. 쿠폰 목록 동기화 (댓글 ID 포함)
+                // 2. 쿠폰 목록 동기화
                 const tempCoupons = [];
                 const commentsRes = await fetch(commentsUrl, { headers: { 'Accept': 'application/vnd.github.v3+json' } });
                 if (commentsRes.ok) {
@@ -288,11 +289,7 @@
                             if (parsed.code && parsed.amount) {
                                 const upperCode = String(parsed.code).trim().toUpperCase();
                                 if (!tempCoupons.some(item => item.code === upperCode)) {
-                                    tempCoupons.push({ 
-                                        commentId: c.id, 
-                                        code: upperCode, 
-                                        amount: parseInt(parsed.amount) 
-                                    });
+                                    tempCoupons.push({ code: upperCode, amount: parseInt(parsed.amount) });
                                 }
                             }
                         } catch(e) {}
@@ -364,7 +361,7 @@
                 applyGameStatusUI();
                 alert('게임 설정이 저장되어 모든 사용자에게 즉시 반영됩니다.');
             } catch (err) {
-                alert(`설정 저장 실패: ${err.message}`);
+                alert(`설정 저장 실패: ${err.message}\n토큰 권한(해당 저장소의 Issues: Read and write)을 확인해 주세요.`);
             }
         }
 
@@ -435,7 +432,6 @@
             listEl.innerHTML = coupons.map((c) => `
                 <div class="coupon-item">
                     <span><b>${c.code}</b> (+${parseInt(c.amount).toLocaleString()}L)</span>
-                    <button class="btn-header" style="padding: 2px 6px; font-size:10px; background:#d32f2f; border:none;" onclick="deleteCoupon(${c.commentId}, '${c.code}')">삭제</button>
                 </div>
             `).join('');
         }
@@ -471,34 +467,7 @@
                 await syncWithGitHub();
                 alert(`쿠폰 [${code}] 발행 완료! 모든 사용자에게 즉시 반영됩니다.`);
             } catch (err) {
-                alert(`쿠폰 발행 실패: ${err.message}`);
-            }
-        }
-
-        // 쿠폰 삭제 기능 추가
-        async function deleteCoupon(commentId, code) {
-            const token = getGithubToken();
-            if (!token) return alert('먼저 위쪽에서 GitHub 토큰을 등록해 주세요.');
-
-            if (!confirm(`정말 [${code}] 쿠폰을 삭제하시겠습니까?`)) return;
-
-            const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/comments/${commentId}`;
-            try {
-                const res = await fetch(url, {
-                    method: 'DELETE',
-                    headers: {
-                        'Accept': 'application/vnd.github.v3+json',
-                        'Authorization': `token ${token}`
-                    }
-                });
-                if (!res.ok && res.status !== 204) {
-                    const errData = await res.json().catch(() => ({}));
-                    throw new Error(errData.message || `HTTP ${res.status}`);
-                }
-                await syncWithGitHub();
-                alert(`쿠폰 [${code}]이 삭제되었습니다.`);
-            } catch (err) {
-                alert(`쿠폰 삭제 실패: ${err.message}`);
+                alert(`쿠폰 발행 실패: ${err.message}\n토큰 권한(해당 저장소의 Issues: Read and write)을 확인해 주세요.`);
             }
         }
 
