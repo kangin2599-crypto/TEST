@@ -69,12 +69,12 @@
         <!-- 관리자 메뉴 영역 -->
         <div id="admin-section" class="admin-panel" style="display: none;">
             <h4>실시간 쿠폰 관리</h4>
-            <div class="coupon-list" id="coupon-list-box">등록된 쿠폰 없음</div>
+            <div class="coupon-list" id="coupon-list-box">로딩 중...</div>
             
             <div style="display: flex; gap: 4px; margin-bottom: 8px;">
                 <input type="text" id="new-code" placeholder="쿠폰 코드" style="flex:1; padding: 4px; font-size: 12px;">
                 <input type="number" id="new-amount" placeholder="금액(L)" style="width: 80px; padding: 4px; font-size: 12px;">
-                <button class="btn-header" onclick="addCouponDirect()">생성</button>
+                <button class="btn-header" onclick="addCoupon()">생성</button>
             </div>
             
             <div style="display: flex; justify-content: space-between; margin-top: 10px; border-top: 1px solid #333; padding-top: 8px;">
@@ -193,12 +193,45 @@
     </div>
 
     <script>
+        const GITHUB_CONFIG = {
+            owner: "본인_GitHub_아이디",
+            repo: "본인_저장소_이름",
+            issueNumber: 1
+        };
+
         const ADMIN_PASSWORD = "kangin2599!";
         const DEFAULT_MONEY = 1000000;
 
         let currentMoney = parseInt(localStorage.getItem('casino_money')) || DEFAULT_MONEY;
+        let coupons = [];
         let localCoupons = JSON.parse(localStorage.getItem('casino_coupons')) || [];
         let usedCouponsLocal = JSON.parse(localStorage.getItem('casino_used_coupons')) || {};
+
+        async function fetchGitHubCoupons() {
+            coupons = [...localCoupons];
+            try {
+                if (GITHUB_CONFIG.owner !== "본인_GitHub_아이디") {
+                    const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}/comments`;
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        const comments = await response.json();
+                        comments.forEach(c => {
+                            try {
+                                const parsed = JSON.parse(c.body);
+                                if (parsed.code && parsed.amount) {
+                                    if (!coupons.some(item => item.code === parsed.code)) {
+                                        coupons.push({ code: parsed.code, amount: parsed.amount });
+                                    }
+                                }
+                            } catch(e) {}
+                        });
+                    }
+                }
+            } catch (err) {
+                console.error("GitHub API 불러오기 예외:", err);
+            }
+            renderAdminCoupons();
+        }
 
         function saveGameData() {
             localStorage.setItem('casino_money', currentMoney);
@@ -219,52 +252,50 @@
             });
         }
 
-        /* --- 쿠폰 관리 --- */
-        function useCouponModal() {
+        /* --- 쿠폰 기능 --- */
+        async function useCouponModal() {
+            await fetchGitHubCoupons();
             const inputCode = prompt("쿠폰 코드를 입력하세요:");
             if (!inputCode) return;
             const cleanCode = inputCode.trim().toUpperCase();
 
-            const targetIndex = localCoupons.findIndex(c => c.code === cleanCode);
-            if (targetIndex === -1) return alert("존재하지 않는 쿠폰입니다.");
+            const target = coupons.find(c => c.code === cleanCode);
+            if (!target) return alert("존재하지 않는 쿠폰입니다.");
 
             if (usedCouponsLocal[cleanCode]) {
                 return alert("이미 사용한 쿠폰입니다.");
             }
 
             usedCouponsLocal[cleanCode] = true;
-            currentMoney += parseInt(localCoupons[targetIndex].amount);
+            currentMoney += parseInt(target.amount);
             updateDisplay();
-            alert(`쿠폰 적용 완료! +${parseInt(localCoupons[targetIndex].amount).toLocaleString()}L 지급되었습니다.`);
+            alert(`쿠폰 적용 완료! +${parseInt(target.amount).toLocaleString()}L 지급되었습니다.`);
         }
 
         function openAdminMenu() {
             if (prompt("관리자 비밀번호를 입력하세요:") === ADMIN_PASSWORD) {
                 document.getElementById('admin-section').style.display = 'block';
-                renderAdminCoupons();
+                fetchGitHubCoupons();
             } else {
                 alert("비밀번호가 올바르지 않습니다.");
             }
         }
 
-        function closeAdminMenu() { 
-            document.getElementById('admin-section').style.display = 'none'; 
-        }
+        function closeAdminMenu() { document.getElementById('admin-section').style.display = 'none'; }
 
         function renderAdminCoupons() {
             const listEl = document.getElementById('coupon-list-box');
             if (!listEl) return;
-            if (localCoupons.length === 0) return listEl.innerHTML = "<div style='color:#777;'>등록된 쿠폰 없음</div>";
-            
-            listEl.innerHTML = localCoupons.map((c, idx) => `
+            if (coupons.length === 0) return listEl.innerHTML = "<div style='color:#777;'>등록된 공용 쿠폰 없음</div>";
+            listEl.innerHTML = coupons.map((c, idx) => `
                 <div class="coupon-item">
                     <span><b>${c.code}</b> (+${parseInt(c.amount).toLocaleString()}L)</span>
-                    <button class="btn-del" onclick="deleteCoupon(${idx})">삭제</button>
+                    <button class="btn-del" onclick="deleteLocalCoupon('${c.code}')">삭제</button>
                 </div>
             `).join('');
         }
 
-        function addCouponDirect() {
+        function addCoupon() {
             const codeInput = document.getElementById('new-code');
             const amountInput = document.getElementById('new-amount');
             const code = codeInput.value.trim().toUpperCase();
@@ -274,23 +305,23 @@
                 return alert('올바른 코드와 금액을 입력해 주세요.');
             }
 
-            if (localCoupons.some(c => c.code === code)) {
-                return alert('이미 존재하는 쿠폰 코드입니다.');
+            if (coupons.some(c => c.code === code)) {
+                return alert('이미 존재하 쿠폰 코드입니다.');
             }
 
             localCoupons.push({ code, amount });
             saveGameData();
-            renderAdminCoupons();
+            fetchGitHubCoupons();
 
             codeInput.value = '';
             amountInput.value = '';
-            alert(`쿠폰 [${code}]이(가) 생성되었습니다!`);
+            alert(`쿠폰 [${code}]이(가) 즉시 생성되었습니다.`);
         }
 
-        function deleteCoupon(index) {
-            localCoupons.splice(index, 1);
+        function deleteLocalCoupon(code) {
+            localCoupons = localCoupons.filter(c => c.code !== code);
             saveGameData();
-            renderAdminCoupons();
+            fetchGitHubCoupons();
         }
 
         function setPlayerMoneyDirect() {
@@ -301,7 +332,7 @@
             }
         }
 
-        /* --- 게임 카드 및 로직 --- */
+        /* --- 게임 로직 --- */
         const SUITS = ['S', 'H', 'D', 'C'];
         const SUIT_ICONS = { 'S': '♠', 'H': '♥', 'D': '♦', 'C': '♣' };
         const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -506,7 +537,7 @@
             holdemPlayerCards = [holdemDeck.pop(), holdemDeck.pop()];
             holdemDealerCards = [{...holdemDeck.pop(), hidden: true}, {...holdemDeck.pop(), hidden: true}];
             communityCards = [];
-            holdemStep = 0; holdemPlaying = false;
+            holdemStep = 0; holdemPlaying = true;
 
             document.getElementById('holdem-controls').style.display = 'flex';
             document.getElementById('holdem-start-btn').disabled = true;
@@ -573,6 +604,7 @@
         }
 
         updateDisplay();
+        fetchGitHubCoupons();
     </script>
 </body>
 </html>
