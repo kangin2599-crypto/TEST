@@ -50,7 +50,7 @@
         .admin-panel h4 { margin: 0 0 8px 0; color: #fff; border-bottom: 1px solid #333; padding-bottom: 4px; }
         .coupon-list { max-height: 120px; overflow-y: auto; margin-bottom: 8px; background: #222; padding: 6px; border-radius: 4px; }
         .coupon-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #333; }
-        .btn-del { background: #d32f2f; color: #fff; border: none; border-radius: 4px; padding: 2px 6px; font-size: 10px; cursor: pointer; }
+        .notice-text { font-size: 11px; color: #aaa; margin-bottom: 8px; line-height: 1.3; }
     </style>
 </head>
 <body>
@@ -68,13 +68,15 @@
 
         <!-- 관리자 메뉴 영역 -->
         <div id="admin-section" class="admin-panel" style="display: none;">
-            <h4>실시간 쿠폰 관리</h4>
-            <div class="coupon-list" id="coupon-list-box">로딩 중...</div>
+            <h4>전체 기기 공용 쿠폰 목록</h4>
+            <div class="coupon-list" id="coupon-list-box">GitHub 불러오는 중...</div>
+            
+            <div class="notice-text">* 아래 버튼을 누르면 모든 기기에서 공유되는 쿠폰을 작성하는 GitHub 페이지가 열립니다. 생성한 텍스트를 붙여넣고 Comment만 누르면 적용됩니다.</div>
             
             <div style="display: flex; gap: 4px; margin-bottom: 8px;">
                 <input type="text" id="new-code" placeholder="쿠폰 코드" style="flex:1; padding: 4px; font-size: 12px;">
                 <input type="number" id="new-amount" placeholder="금액(L)" style="width: 80px; padding: 4px; font-size: 12px;">
-                <button class="btn-header" onclick="addCoupon()">생성</button>
+                <button class="btn-header" onclick="addCoupon()">전체 공용 쿠폰 발행</button>
             </div>
             
             <div style="display: flex; justify-content: space-between; margin-top: 10px; border-top: 1px solid #333; padding-top: 8px;">
@@ -193,10 +195,10 @@
     </div>
 
     <script>
-        // 본인 GitHub 아이디, 저장소 이름, 이슈 번호로 수정하세요.
+        // ★ 본인 GitHub 설정 정보로 꼭 수정하세요 ★
         const GITHUB_CONFIG = {
-            owner: "본인_GitHub_아이디",
-            repo: "본인_저장소_이름",
+            owner: "kangin2599",
+            repo: "TEST",
             issueNumber: 1
         };
 
@@ -205,14 +207,12 @@
 
         let currentMoney = parseInt(localStorage.getItem('casino_money')) || DEFAULT_MONEY;
         let coupons = [];
-        let localCoupons = JSON.parse(localStorage.getItem('casino_coupons')) || [];
         let usedCouponsLocal = JSON.parse(localStorage.getItem('casino_used_coupons')) || {};
 
         async function fetchGitHubCoupons() {
-            coupons = [...localCoupons];
-            
+            coupons = [];
             if (GITHUB_CONFIG.owner && GITHUB_CONFIG.owner !== "본인_GitHub_아이디") {
-                const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}/comments`;
+                const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}/comments?cache_bust=${Date.now()}`;
                 
                 try {
                     const response = await fetch(url, {
@@ -225,22 +225,17 @@
                             try {
                                 const bodyText = c.body.trim();
                                 const parsed = JSON.parse(bodyText);
-                                
                                 if (parsed.code && parsed.amount) {
                                     const upperCode = String(parsed.code).trim().toUpperCase();
                                     if (!coupons.some(item => item.code === upperCode)) {
                                         coupons.push({ code: upperCode, amount: parseInt(parsed.amount) });
                                     }
                                 }
-                            } catch(e) {
-                                // JSON 형식이 아닌 일반 댓글은 무시
-                            }
+                            } catch(e) {}
                         });
-                    } else {
-                        console.warn("GitHub API 응답 오류 코드:", response.status);
                     }
                 } catch (err) {
-                    console.error("GitHub API 불러오기 실패:", err);
+                    console.error("API 로드 실패", err);
                 }
             }
             renderAdminCoupons();
@@ -248,7 +243,6 @@
 
         function saveGameData() {
             localStorage.setItem('casino_money', currentMoney);
-            localStorage.setItem('casino_coupons', JSON.stringify(localCoupons));
             localStorage.setItem('casino_used_coupons', JSON.stringify(usedCouponsLocal));
         }
 
@@ -299,11 +293,10 @@
         function renderAdminCoupons() {
             const listEl = document.getElementById('coupon-list-box');
             if (!listEl) return;
-            if (coupons.length === 0) return listEl.innerHTML = "<div style='color:#777;'>등록된 공용 쿠폰 없음</div>";
+            if (coupons.length === 0) return listEl.innerHTML = "<div style='color:#777;'>공용 등록된 쿠폰 없음</div>";
             listEl.innerHTML = coupons.map((c) => `
                 <div class="coupon-item">
                     <span><b>${c.code}</b> (+${parseInt(c.amount).toLocaleString()}L)</span>
-                    <button class="btn-del" onclick="deleteLocalCoupon('${c.code}')">삭제</button>
                 </div>
             `).join('');
         }
@@ -318,23 +311,19 @@
                 return alert('올바른 코드와 금액을 입력해 주세요.');
             }
 
-            if (coupons.some(c => c.code === code)) {
-                return alert('이미 존재하는 쿠폰 코드입니다.');
-            }
-
-            localCoupons.push({ code, amount });
-            saveGameData();
-            fetchGitHubCoupons();
+            const jsonString = JSON.stringify({ code: code, amount: amount });
+            
+            // 클립보드 복사 후 GitHub 이슈 페이지로 바로 이동
+            navigator.clipboard.writeText(jsonString).then(() => {
+                alert(`쿠폰 데이터 [ ${jsonString} ]가 복사되었습니다!\n열리는 GitHub 페이지의 댓글 창에 붙여넣기(Paste) 후 [Comment]를 누르면 모든 기기에 적용됩니다.`);
+                window.open(`https://github.com/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}`, '_blank');
+            }).catch(() => {
+                prompt("아래 텍스트를 복사한 뒤 열리는 GitHub 댓글란에 등록하세요:", jsonString);
+                window.open(`https://github.com/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}`, '_blank');
+            });
 
             codeInput.value = '';
             amountInput.value = '';
-            alert(`쿠폰 [${code}]이(가) 로컬에 생성되었습니다.`);
-        }
-
-        function deleteLocalCoupon(code) {
-            localCoupons = localCoupons.filter(c => c.code !== code);
-            saveGameData();
-            fetchGitHubCoupons();
         }
 
         function setPlayerMoneyDirect() {
