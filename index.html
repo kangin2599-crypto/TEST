@@ -17,11 +17,11 @@
         
         .tab-menu { display: flex; gap: 4px; margin-bottom: 16px; }
         .tab-btn { flex: 1; padding: 8px 0; font-size: 12px; font-weight: bold; background-color: #121212; color: #888888; border: 1px solid #333333; border-radius: 6px; cursor: pointer; display: none; }
-        .tab-btn.visible { display: block; }
+        .tab-btn.visible { display: block !important; }
         .tab-btn.active { background-color: #ffffff; color: #000000; border-color: #ffffff; }
 
         .game-section { display: none; }
-        .game-section.active { display: block; }
+        .game-section.active { display: block !important; }
 
         .bet-box { background: #121212; border: 1px solid #333333; padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 13px; }
         .bet-box input, .bet-box select { padding: 6px; font-size: 13px; border-radius: 4px; border: 1px solid #444444; background: #222222; color: #ffffff; text-align: center; width: 90px; }
@@ -46,7 +46,7 @@
         .result-msg { font-size: 14px; margin-top: 10px; min-height: 20px; font-weight: bold; color: #ffffff; }
         .pot-box { font-size: 13px; color: #ffffff; margin-bottom: 8px; }
 
-        .admin-panel { background: #121212; border: 1px solid #555; padding: 12px; border-radius: 8px; margin-bottom: 12px; text-align: left; font-size: 12px; }
+        .admin-panel { background: #121212; border: 1px solid #555; padding: 12px; border-radius: 8px; margin-bottom: 12px; text-align: left; font-size: 12px; display: none; }
         .admin-panel h4 { margin: 0 0 8px 0; color: #fff; border-bottom: 1px solid #333; padding-bottom: 4px; }
         .coupon-list { max-height: 100px; overflow-y: auto; margin-bottom: 8px; background: #222; padding: 6px; border-radius: 4px; }
         .coupon-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #333; }
@@ -70,14 +70,15 @@
         </div>
 
         <!-- 관리자 메뉴 영역 -->
-        <div id="admin-section" class="admin-panel" style="display: none;">
+        <div id="admin-section" class="admin-panel">
             <h4>게임 활성화 / 비활성화 (전체 적용)</h4>
             <div class="game-toggle-box">
-                <div class="toggle-item"><span>주사위</span><input type="checkbox" id="toggle-dice" onchange="updateGameStatus()"></div>
-                <div class="toggle-item"><span>블랙잭</span><input type="checkbox" id="toggle-bj" onchange="updateGameStatus()"></div>
-                <div class="toggle-item"><span>세븐포커</span><input type="checkbox" id="toggle-poker" onchange="updateGameStatus()"></div>
-                <div class="toggle-item"><span>홀덤</span><input type="checkbox" id="toggle-holdem" onchange="updateGameStatus()"></div>
+                <div class="toggle-item"><span>주사위</span><input type="checkbox" id="toggle-dice"></div>
+                <div class="toggle-item"><span>블랙잭</span><input type="checkbox" id="toggle-bj"></div>
+                <div class="toggle-item"><span>세븐포커</span><input type="checkbox" id="toggle-poker"></div>
+                <div class="toggle-item"><span>홀덤</span><input type="checkbox" id="toggle-holdem"></div>
             </div>
+            <button class="btn-header" style="width:100%; margin-bottom:10px;" onclick="updateGameStatus()">게임을 설정(GitHub 적용)</button>
 
             <h4>전체 기기 공용 쿠폰 목록</h4>
             <div class="coupon-list" id="coupon-list-box">GitHub 불러오는 중...</div>
@@ -98,14 +99,14 @@
 
         <!-- 게임 탭 -->
         <div class="tab-menu">
-            <button id="tab-btn-dice" class="tab-btn" onclick="switchGame('dice')">주사위</button>
-            <button id="tab-btn-bj" class="tab-btn" onclick="switchGame('bj')">블랙잭</button>
-            <button id="tab-btn-poker" class="tab-btn" onclick="switchGame('poker')">세븐포커</button>
-            <button id="tab-btn-holdem" class="tab-btn" onclick="switchGame('holdem')">홀덤</button>
+            <button id="tab-btn-dice" class="tab-btn visible" onclick="switchGame('dice')">주사위</button>
+            <button id="tab-btn-bj" class="tab-btn visible" onclick="switchGame('bj')">블랙잭</button>
+            <button id="tab-btn-poker" class="tab-btn visible" onclick="switchGame('poker')">세븐포커</button>
+            <button id="tab-btn-holdem" class="tab-btn visible" onclick="switchGame('holdem')">홀덤</button>
         </div>
 
         <!-- 1. 주사위 -->
-        <div id="game-dice" class="game-section">
+        <div id="game-dice" class="game-section active">
             <div class="dice-container">
                 <div id="dice1" class="dice">-</div>
                 <div id="dice2" class="dice">-</div>
@@ -219,13 +220,14 @@
         let coupons = [];
         let usedCouponsLocal = JSON.parse(localStorage.getItem('casino_used_coupons')) || {};
         let gameStatus = { dice: true, bj: true, poker: true, holdem: true };
+        let activeGameType = 'dice';
 
         async function syncWithGitHub() {
             const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}?timestamp=${Date.now()}`;
             const commentsUrl = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}/comments?timestamp=${Date.now()}`;
 
             try {
-                // 1. 게임 On/Off 상태 동기화 (Issue 본문)
+                // 1. 게임 On/Off 상태 동기화
                 const issueRes = await fetch(url, { headers: { 'Accept': 'application/vnd.github.v3+json' } });
                 if (issueRes.ok) {
                     const issueData = await issueRes.json();
@@ -237,7 +239,7 @@
                     } catch(e) {}
                 }
 
-                // 2. 쿠폰 목록 동기화 (Comments)
+                // 2. 쿠폰 목록 동기화
                 coupons = [];
                 const commentsRes = await fetch(commentsUrl, { headers: { 'Accept': 'application/vnd.github.v3+json' } });
                 if (commentsRes.ok) {
@@ -255,7 +257,7 @@
                     });
                 }
             } catch (err) {
-                console.error("동기화 실패", err);
+                console.error("GitHub 동기화 오류", err);
             }
 
             applyGameStatusUI();
@@ -269,23 +271,24 @@
             document.getElementById('toggle-holdem').checked = gameStatus.holdem;
 
             const games = ['dice', 'bj', 'poker', 'holdem'];
-            let activeGameSet = false;
+            let currentStillValid = false;
 
             games.forEach(g => {
                 const btn = document.getElementById(`tab-btn-${g}`);
-                const sec = document.getElementById(`game-${g}`);
                 if (gameStatus[g]) {
                     btn.classList.add('visible');
-                    if (!activeGameSet) {
-                        switchGame(g);
-                        activeGameSet = true;
-                    }
+                    if (g === activeGameType) currentStillValid = true;
                 } else {
                     btn.classList.remove('visible');
-                    btn.classList.remove('active');
-                    sec.classList.remove('active');
                 }
             });
+
+            if (!currentStillValid) {
+                const firstAvailable = games.find(g => gameStatus[g]);
+                if (firstAvailable) switchGame(firstAvailable);
+            } else {
+                switchGame(activeGameType);
+            }
         }
 
         function updateGameStatus() {
@@ -298,7 +301,10 @@
 
             const jsonStr = JSON.stringify(updated);
             navigator.clipboard.writeText(jsonStr).then(() => {
-                alert(`게임 설정 [ ${jsonStr} ] 복사 완료!\n열리는 GitHub 이슈의 [Edit]를 눌러 본문(Body)에 붙여넣고 [Update issue]를 누르면 전원에게 적용됩니다.`);
+                alert(`게임 설정이 복사되었습니다!\nGitHub 페이지의 본문(Body)에 붙여넣고 저장하세요:\n\n${jsonStr}`);
+                window.open(`https://github.com/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}`, '_blank');
+            }).catch(() => {
+                prompt("아래 텍스트를 복사해 GitHub 이슈 본문에 붙여넣으세요:", jsonStr);
                 window.open(`https://github.com/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}`, '_blank');
             });
         }
@@ -315,10 +321,18 @@
 
         function switchGame(gameType) {
             if (!gameStatus[gameType]) return;
+            activeGameType = gameType;
             const games = ['dice', 'bj', 'poker', 'holdem'];
             games.forEach(g => {
-                document.getElementById(`tab-btn-${g}`).classList.toggle('active', g === gameType);
-                document.getElementById(`game-${g}`).classList.toggle('active', g === gameType);
+                const btn = document.getElementById(`tab-btn-${g}`);
+                const sec = document.getElementById(`game-${g}`);
+                if (g === gameType) {
+                    btn.classList.add('active');
+                    sec.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                    sec.classList.remove('active');
+                }
             });
         }
 
@@ -347,7 +361,9 @@
             }
         }
 
-        function closeAdminMenu() { document.getElementById('admin-section').style.display = 'none'; }
+        function closeAdminMenu() {
+            document.getElementById('admin-section').style.display = 'none';
+        }
 
         function renderAdminCoupons() {
             const listEl = document.getElementById('coupon-list-box');
@@ -446,6 +462,7 @@
             return best;
         }
 
+        /* 1. 주사위 기능 */
         function playDice() {
             const bet = parseInt(document.getElementById('diceBet').value);
             const predict = parseInt(document.getElementById('predictSum').value);
@@ -466,6 +483,7 @@
             updateDisplay();
         }
 
+        /* 2. 블랙잭 기능 */
         let playerCards = [], dealerCards = [], bjBet = 0, bjPlaying = false;
         function getCard() { return Math.floor(Math.random() * 10) + 1; }
         function calcScore(cards) { return cards.reduce((a, b) => a + b, 0); }
@@ -516,6 +534,7 @@
             updateDisplay();
         }
 
+        /* 3. 세븐포커 기능 */
         let pokerDeck = [], player7Cards = [], dealer7Cards = [], potMoney = 0, baseBet = 0, pokerRound = 0, pokerPlaying = false;
         function startSevenPoker() {
             if (pokerPlaying) return;
@@ -575,6 +594,7 @@
             updateDisplay();
         }
 
+        /* 4. 홀덤 기능 */
         let holdemDeck = [], communityCards = [], holdemPlayerCards = [], holdemDealerCards = [];
         let holdemPot = 0, holdemBetVal = 0, holdemStep = 0, holdemPlaying = false;
 
@@ -657,8 +677,12 @@
             updateDisplay();
         }
 
-        updateDisplay();
-        syncWithGitHub();
+        // 초기화 시 동작
+        window.onload = function() {
+            updateDisplay();
+            switchGame('dice');
+            syncWithGitHub();
+        };
     </script>
 </body>
 </html>
