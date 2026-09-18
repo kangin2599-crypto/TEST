@@ -4,9 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>test</title>
-    <!-- Firebase SDK (v10 Compat) -->
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     <style>
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #121212; color: #ffffff; margin: 0; padding: 12px; display: flex; justify-content: center; }
@@ -51,11 +48,8 @@
 
         .admin-panel { background: #121212; border: 1px solid #555; padding: 12px; border-radius: 8px; margin-bottom: 12px; text-align: left; font-size: 12px; }
         .admin-panel h4 { margin: 0 0 8px 0; color: #fff; border-bottom: 1px solid #333; padding-bottom: 4px; }
-        .admin-toggle-group { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; background: #222; padding: 8px; border-radius: 4px; }
-        .admin-toggle-item { display: flex; align-items: center; justify-content: space-between; font-size: 12px; }
         .coupon-list { max-height: 120px; overflow-y: auto; margin-bottom: 8px; background: #222; padding: 6px; border-radius: 4px; }
         .coupon-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #333; }
-        .btn-del { background: #d32f2f; color: white; border: none; padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 10px; }
     </style>
 </head>
 <body>
@@ -73,16 +67,8 @@
 
         <!-- 관리자 메뉴 영역 -->
         <div id="admin-section" class="admin-panel" style="display: none;">
-            <h4>게임 활성화 설정 (실시간 전체 공유)</h4>
-            <div class="admin-toggle-group">
-                <label class="admin-toggle-item">주사위 <input type="checkbox" id="toggle-dice" onchange="toggleGameSetting('dice', this.checked)"></label>
-                <label class="admin-toggle-item">블랙잭 <input type="checkbox" id="toggle-bj" onchange="toggleGameSetting('bj', this.checked)"></label>
-                <label class="admin-toggle-item">세븐 포커 <input type="checkbox" id="toggle-poker" onchange="toggleGameSetting('poker', this.checked)"></label>
-                <label class="admin-toggle-item">홀덤 <input type="checkbox" id="toggle-holdem" onchange="toggleGameSetting('holdem', this.checked)"></label>
-            </div>
-
-            <h4>공용 실시간 쿠폰 관리</h4>
-            <div class="coupon-list" id="coupon-list-box"></div>
+            <h4>GitHub Issue 기반 공용 쿠폰 관리</h4>
+            <div class="coupon-list" id="coupon-list-box">로딩 중...</div>
             
             <div style="display: flex; gap: 4px; margin-bottom: 8px;">
                 <input type="text" id="new-code" placeholder="쿠폰 코드" style="flex:1; padding: 4px; font-size: 12px;">
@@ -98,14 +84,14 @@
 
         <!-- 게임 탭 -->
         <div class="tab-menu">
-            <button id="tab-btn-dice" class="tab-btn" onclick="switchGame('dice')">주사위</button>
-            <button id="tab-btn-bj" class="tab-btn" onclick="switchGame('bj')">블랙잭</button>
-            <button id="tab-btn-poker" class="tab-btn" onclick="switchGame('poker')">세븐포커</button>
-            <button id="tab-btn-holdem" class="tab-btn" onclick="switchGame('holdem')">홀덤</button>
+            <button id="tab-btn-dice" class="tab-btn visible active" onclick="switchGame('dice')">주사위</button>
+            <button id="tab-btn-bj" class="tab-btn visible" onclick="switchGame('bj')">블랙잭</button>
+            <button id="tab-btn-poker" class="tab-btn visible" onclick="switchGame('poker')">세븐포커</button>
+            <button id="tab-btn-holdem" class="tab-btn visible" onclick="switchGame('holdem')">홀덤</button>
         </div>
 
         <!-- 1. 주사위 -->
-        <div id="game-dice" class="game-section">
+        <div id="game-dice" class="game-section active">
             <div class="dice-container">
                 <div id="dice1" class="dice">-</div>
                 <div id="dice2" class="dice">-</div>
@@ -206,54 +192,45 @@
     </div>
 
     <script>
+        // ★ 아래 3개 항목을 본인 정보로 변경하세요 ★
+        const GITHUB_CONFIG = {
+            owner: "본인_GitHub_아이디",
+            repo: "본인_저장소_이름",
+            issueNumber: 1 // 생성한 이슈 번호
+        };
+
         const ADMIN_PASSWORD = "kangin2599!";
         const DEFAULT_MONEY = 1000000;
 
-        // Firebase 초기화
-        const firebaseConfig = {
-            databaseURL: "https://casino-shared-db-default-rtdb.asia-southeast1.firebasedatabase.app"
-        };
-        
-        let db = null;
-        try {
-            if (!firebase.apps.length) {
-                firebase.initializeApp(firebaseConfig);
-            }
-            db = firebase.database();
-        } catch(e) { 
-            console.error("Firebase 초기화 에러:", e); 
-        }
-
-        let currentMoney = parseInt(localStorage.getItem('casino_money'));
-        if (isNaN(currentMoney)) {
-            currentMoney = DEFAULT_MONEY;
-        }
-
+        let currentMoney = parseInt(localStorage.getItem('casino_money')) || DEFAULT_MONEY;
         let coupons = [];
         let usedCouponsLocal = JSON.parse(localStorage.getItem('casino_used_coupons')) || {};
-        let gameActiveSettings = { dice: true, bj: true, poker: true, holdem: true };
 
-        // Firebase 실시간 동기화
-        if (db) {
-            db.ref('coupons').on('value', (snapshot) => {
-                const data = snapshot.val();
+        // GitHub Issue 댓글에서 쿠폰 불러오기
+        async function fetchGitHubCoupons() {
+            try {
+                const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}/comments`;
+                const response = await fetch(url);
+                if (!response.ok) throw new Error("쿠폰 데이터를 가져오지 못했습니다.");
+                
+                const comments = await response.json();
                 coupons = [];
-                if (data) {
-                    Object.keys(data).forEach(key => {
-                        coupons.push({ id: key, ...data[key] });
-                    });
-                }
-                renderAdminCoupons();
-            }, (err) => console.error("Database 오류:", err));
 
-            db.ref('game_settings').on('value', (snapshot) => {
-                const data = snapshot.val();
-                if (data) {
-                    gameActiveSettings = data;
-                    syncAdminToggles();
-                    applyGameVisibility();
-                }
-            });
+                comments.forEach(c => {
+                    try {
+                        const parsed = JSON.parse(c.body);
+                        if (parsed.code && parsed.amount) {
+                            coupons.push({ id: c.id, code: parsed.code, amount: parsed.amount });
+                        }
+                    } catch(e) {}
+                });
+
+                renderAdminCoupons();
+            } catch (err) {
+                console.error(err);
+                const box = document.getElementById('coupon-list-box');
+                if (box) box.innerText = "쿠폰 불러오기 실패 (GITHUB_CONFIG 설정 확인 필요)";
+            }
         }
 
         function saveGameData() {
@@ -266,61 +243,17 @@
             saveGameData();
         }
 
-        function applyGameVisibility() {
-            const games = ['dice', 'bj', 'poker', 'holdem'];
-            let activeTabFound = false;
-
-            games.forEach(g => {
-                const btn = document.getElementById(`tab-btn-${g}`);
-                const isON = gameActiveSettings[g];
-                if (isON) {
-                    btn.classList.add('visible');
-                    if (!activeTabFound) {
-                        switchGame(g);
-                        activeTabFound = true;
-                    }
-                } else {
-                    btn.classList.remove('visible');
-                    document.getElementById(`game-${g}`).classList.remove('active');
-                }
-            });
-        }
-
-        function toggleGameSetting(gameKey, isChecked) {
-            gameActiveSettings[gameKey] = isChecked;
-            if (db) {
-                db.ref('game_settings').set(gameActiveSettings);
-            } else {
-                applyGameVisibility();
-            }
-        }
-
-        function syncAdminToggles() {
-            document.getElementById('toggle-dice').checked = !!gameActiveSettings.dice;
-            document.getElementById('toggle-bj').checked = !!gameActiveSettings.bj;
-            document.getElementById('toggle-poker').checked = !!gameActiveSettings.poker;
-            document.getElementById('toggle-holdem').checked = !!gameActiveSettings.holdem;
-        }
-
         function switchGame(gameType) {
-            if (!gameActiveSettings[gameType]) return;
-
             const games = ['dice', 'bj', 'poker', 'holdem'];
             games.forEach(g => {
-                const btn = document.getElementById(`tab-btn-${g}`);
-                const sec = document.getElementById(`game-${g}`);
-                if (g === gameType) {
-                    btn.classList.add('active');
-                    sec.classList.add('active');
-                } else {
-                    btn.classList.remove('active');
-                    sec.classList.remove('active');
-                }
+                document.getElementById(`tab-btn-${g}`).classList.toggle('active', g === gameType);
+                document.getElementById(`game-${g}`).classList.toggle('active', g === gameType);
             });
         }
 
-        /* --- 쿠폰 및 관리자 기능 --- */
-        function useCouponModal() {
+        /* --- 쿠폰 기능 --- */
+        async function useCouponModal() {
+            await fetchGitHubCoupons();
             const inputCode = prompt("쿠폰 코드를 입력하세요:");
             if (!inputCode) return;
             const cleanCode = inputCode.trim().toUpperCase();
@@ -342,8 +275,7 @@
         function openAdminMenu() {
             if (prompt("관리자 비밀번호를 입력하세요:") === ADMIN_PASSWORD) {
                 document.getElementById('admin-section').style.display = 'block';
-                syncAdminToggles();
-                renderAdminCoupons();
+                fetchGitHubCoupons();
             } else {
                 alert("비밀번호가 올바르지 않습니다.");
             }
@@ -358,13 +290,11 @@
             listEl.innerHTML = coupons.map((c) => `
                 <div class="coupon-item">
                     <span><b>${c.code}</b> (+${parseInt(c.amount).toLocaleString()}L)</span>
-                    <button class="btn-del" onclick="deleteCoupon('${c.id}')">삭제</button>
                 </div>
             `).join('');
         }
 
-        // [수정된 쿠폰 생성 함수]
-        async function addCoupon() {
+        function addCoupon() {
             const codeInput = document.getElementById('new-code');
             const amountInput = document.getElementById('new-amount');
             const code = codeInput.value.trim().toUpperCase();
@@ -374,33 +304,17 @@
                 return alert('올바른 코드와 금액을 입력해 주세요.');
             }
 
-            if (!db) {
-                return alert('데이터베이스 연결에 실패했습니다. 페이지를 새로고침 해보세요.');
-            }
-
-            try {
-                const newRef = db.ref('coupons').push();
-                const newCouponData = {
-                    id: newRef.key,
-                    code: code,
-                    amount: amount,
-                    createdAt: Date.now()
-                };
-
-                await newRef.set(newCouponData);
-                alert(`[${code}] 쿠폰이 정상적으로 생성되었습니다!`);
-                codeInput.value = '';
-                amountInput.value = '';
-            } catch (error) {
-                console.error("쿠폰 생성 에러:", error);
-                alert("쿠폰 생성 실패: " + error.message);
-            }
-        }
-
-        function deleteCoupon(couponId) {
-            if (db && couponId) {
-                db.ref('coupons/' + couponId).remove();
-            }
+            const jsonString = JSON.stringify({ code: code, amount: amount });
+            const issueUrl = `https://github.com/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}`;
+            
+            prompt(
+                `아래 JSON 텍스트를 복사(Ctrl+C)한 뒤 확인을 눌러 열리는 GitHub 이슈 댓글창에 붙여넣고 [Comment]를 작성해 주세요:`, 
+                jsonString
+            );
+            
+            window.open(issueUrl, '_blank');
+            codeInput.value = '';
+            amountInput.value = '';
         }
 
         function setPlayerMoneyDirect() {
@@ -411,7 +325,7 @@
             }
         }
 
-        /* --- 카드 게임 공통 로직 --- */
+        /* --- 게임 로직 --- */
         const SUITS = ['S', 'H', 'D', 'C'];
         const SUIT_ICONS = { 'S': '♠', 'H': '♥', 'D': '♦', 'C': '♣' };
         const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -471,7 +385,6 @@
             return best;
         }
 
-        /* --- 1. 주사위 --- */
         function playDice() {
             const bet = parseInt(document.getElementById('diceBet').value);
             const predict = parseInt(document.getElementById('predictSum').value);
@@ -492,7 +405,6 @@
             updateDisplay();
         }
 
-        /* --- 2. 블랙잭 --- */
         let playerCards = [], dealerCards = [], bjBet = 0, bjPlaying = false;
         function getCard() { return Math.floor(Math.random() * 10) + 1; }
         function calcScore(cards) { return cards.reduce((a, b) => a + b, 0); }
@@ -543,7 +455,6 @@
             updateDisplay();
         }
 
-        /* --- 3. 세븐 포커 --- */
         let pokerDeck = [], player7Cards = [], dealer7Cards = [], potMoney = 0, baseBet = 0, pokerRound = 0, pokerPlaying = false;
         function startSevenPoker() {
             if (pokerPlaying) return;
@@ -603,7 +514,6 @@
             updateDisplay();
         }
 
-        /* --- 4. 텍사스 홀덤 --- */
         let holdemDeck = [], communityCards = [], holdemPlayerCards = [], holdemDealerCards = [];
         let holdemPot = 0, holdemBetVal = 0, holdemStep = 0, holdemPlaying = false;
 
@@ -687,7 +597,7 @@
         }
 
         updateDisplay();
-        applyGameVisibility();
+        fetchGitHubCoupons();
     </script>
 </body>
 </html>
