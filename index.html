@@ -227,19 +227,25 @@
             <div id="holdem-result" class="result-msg"></div>
         </div>
 
-        <!-- 5. 원카드 (다인원 멀티플레이) -->
+        <!-- 5. 원카드 (닉네임 설정 및 다인원 멀티플레이) -->
         <div id="game-onecard" class="game-section">
             <div class="multi-panel">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
                     <b>다인원 원카드 & 채팅</b>
                     <button class="btn-header" style="background:#0277bd;" onclick="openRuleModal()">📖 규칙 보기</button>
                 </div>
+                
+                <!-- 닉네임 설정 입력창 -->
+                <div style="display: flex; gap: 4px; margin-bottom: 6px; align-items: center;">
+                    <input type="text" id="oc-nickname" placeholder="내 닉네임 입력" value="플레이어" style="width: 100px; background:#222; color:#fff; border:1px solid #444; padding:4px; font-size:11px; text-align:center;">
+                    <div id="oc-multi-status" style="font-size: 11px; color: #aaa; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">상태: 대기 중</div>
+                </div>
+
                 <div style="display: flex; gap: 4px; margin-bottom: 6px;">
-                    <button class="btn-header" onclick="createOneCardRoom()">방 만들기(방장)</button>
+                    <button class="btn-header" onclick="createOneCardRoom()">방 만들기</button>
                     <input type="text" id="oc-room-id" placeholder="방 코드 입력" style="flex:1; background:#222; color:#fff; border:1px solid #444; padding:4px; font-size:11px;">
                     <button class="btn-header" onclick="joinOneCardRoom()">참여하기</button>
                 </div>
-                <div id="oc-multi-status" style="font-size: 11px; color: #aaa; margin-bottom: 6px;">상태: 대기 중</div>
                 
                 <!-- 접속자 목록 표시 -->
                 <div id="player-status-list" class="player-status-list">
@@ -440,7 +446,7 @@
         function hit() { playerCards.push(getCard()); renderBj(); }
         function stand() { updateDisplay(); }
 
-        /* --- 다인원 멀티플레이어 원카드 & 채팅 시스템 --- */
+        /* --- 닉네임 기능이 포함된 다인원 멀티플레이어 원카드 & 채팅 시스템 --- */
         let peer = null, myPeerId = '';
         let isHost = false;
         let connections = {}; // 방장용: { peerId: connection 객체 }
@@ -453,6 +459,11 @@
 
         let ocDeck = [], ocMyCards = [], ocTopCard = null, ocAttackStack = 0;
         let ocGameActive = false, ocBetVal = 10000;
+
+        function getMyNickname() {
+            const input = document.getElementById('oc-nickname');
+            return input ? input.value.trim() || "플레이어" : "플레이어";
+        }
 
         function openRuleModal() { document.getElementById('rule-modal').style.display = 'flex'; }
         function closeRuleModal() { document.getElementById('rule-modal').style.display = 'none'; }
@@ -469,10 +480,11 @@
             const input = document.getElementById('chat-input');
             const text = input.value.trim();
             if (!text) return;
-            appendChatLog("나", text);
+            const myName = getMyNickname();
+            appendChatLog(myName, text);
             input.value = '';
 
-            const payload = { type: 'CHAT', sender: myPeerId.substring(0, 5), text: text };
+            const payload = { type: 'CHAT', sender: myName, text: text };
             if (isHost) {
                 broadcastToAll(payload);
             } else if (hostConn && hostConn.open) {
@@ -494,7 +506,7 @@
             peer = new Peer();
             peer.on('open', (id) => {
                 myPeerId = id;
-                document.getElementById('oc-multi-status').innerText = `내 코드: ${id}`;
+                document.getElementById('oc-multi-status').innerText = `코드: ${id}`;
                 if (onOpenCallback) onOpenCallback(id);
             });
             peer.on('error', (err) => { alert('Peer 연결 오류: ' + err.type); });
@@ -504,7 +516,8 @@
             initPeer((id) => {
                 isHost = true;
                 connections = {};
-                roomPlayers = [{ id: id, name: '방장(나)', cardCount: 0 }];
+                const myName = getMyNickname();
+                roomPlayers = [{ id: id, name: myName + ' (방장)', cardCount: 0 }];
                 myIndex = 0;
                 document.getElementById('oc-room-id').value = id;
                 document.getElementById('oc-start-btn').style.display = 'block';
@@ -514,10 +527,7 @@
 
                 peer.on('connection', (conn) => {
                     connections[conn.peer] = conn;
-                    conn.on('open', () => {
-                        roomPlayers.push({ id: conn.peer, name: `참여자(${conn.peer.substring(0,4)})`, cardCount: 0 });
-                        broadcastRoomState();
-                    });
+                    conn.on('open', () => {});
                     conn.on('data', (data) => { handleHostData(conn.peer, data); });
                     conn.on('close', () => {
                         delete connections[conn.peer];
@@ -535,8 +545,8 @@
                 isHost = false;
                 hostConn = peer.connect(targetId);
                 hostConn.on('open', () => {
-                    document.getElementById('oc-multi-status').innerText = `방 연결 성공! 대기 중...`;
-                    hostConn.send({ type: 'JOIN_ROOM', id: id });
+                    document.getElementById('oc-multi-status').innerText = `방 연결 성공!`;
+                    hostConn.send({ type: 'JOIN_ROOM', id: id, name: getMyNickname() });
                 });
                 hostConn.on('data', (data) => { handleGuestData(data); });
                 hostConn.on('close', () => { alert('방장과의 연결이 끊겼습니다.'); });
@@ -563,7 +573,6 @@
             }).join('');
         }
 
-        /* --- 다인원 게임 시작 (방장 전용) --- */
         function startMultiOneCardGame() {
             if (!isHost) return;
             if (roomPlayers.length < 2) return alert('최소 2명 이상 참여해야 게임을 시작할 수 있습니다.');
@@ -578,7 +587,6 @@
             ocMyCards = []; 
             for(let i=0; i<7; i++) ocMyCards.push(ocDeck.pop());
 
-            // 각 참여자에게 나누어줄 카드 준비
             let hands = {};
             roomPlayers.forEach((p, idx) => {
                 if (idx === 0) {
@@ -602,7 +610,6 @@
             turnDirection = 1;
             ocGameActive = true;
 
-            // 각 클라이언트에게 게임 시작 데이터 전송
             roomPlayers.forEach((p, idx) => {
                 if (idx !== 0 && connections[p.id]) {
                     connections[p.id].send({
@@ -623,18 +630,16 @@
             updatePlayerListUI();
         }
 
-        /* --- 데이터 수신 처리 (방장) --- */
         function handleHostData(peerId, data) {
             if (data.type === 'JOIN_ROOM') {
-                // 방장이 이미 처리함
+                roomPlayers.push({ id: data.id, name: data.name, cardCount: 0 });
+                broadcastRoomState();
             } else if (data.type === 'CHAT') {
                 appendChatLog(data.sender, data.text);
-                // 다른 사람들에게도 채팅 전파
                 Object.entries(connections).forEach(([pid, c]) => {
                     if (pid !== peerId && c && c.open) c.send(data);
                 });
             } else if (data.type === 'PLAY_CARD') {
-                // 플레이어가 카드를 냈을 때
                 ocTopCard = data.card;
                 ocAttackStack = data.attackStack;
                 
@@ -646,14 +651,12 @@
                     return;
                 }
 
-                // 특수 카드 효과 적용 (J: 점프, Q: 역순, K: 한 번 더)
                 let skipCount = 1;
-                if (data.card.rank === 'J') skipCount = 2; // 다음 사람 건너뜀
-                else if (data.card.rank === 'Q') turnDirection *= -1; // 방향 전환
-                else if (data.card.rank === 'K') skipCount = 0; // 내 턴 한 번 더 (건너뜀 없음)
+                if (data.card.rank === 'J') skipCount = 2;
+                else if (data.card.rank === 'Q') turnDirection *= -1;
+                else if (data.card.rank === 'K') skipCount = 0;
 
                 currentTurnIdx = (currentTurnIdx + (skipCount * turnDirection) + roomPlayers.length) % roomPlayers.length;
-
                 broadcastGameState();
             } else if (data.type === 'DRAW_CARD') {
                 const p = roomPlayers.find(item => item.id === peerId);
@@ -681,7 +684,6 @@
             updateOCStatus(currentTurnIdx === myIndex ? "내 차례입니다." : `${roomPlayers[currentTurnIdx].name} 차례입니다.`);
         }
 
-        /* --- 데이터 수신 처리 (참여자) --- */
         function handleGuestData(data) {
             if (data.type === 'ROOM_STATE') {
                 roomPlayers = data.players;
@@ -738,7 +740,6 @@
 
             document.getElementById('oc-attack-count').innerText = ocAttackStack;
             
-            // 다른 누군가 카드가 1장 남았을 때 원카드 버튼 노출
             const someoneHasOne = roomPlayers.some((p, idx) => idx !== myIndex && p.cardCount === 1);
             document.getElementById('oc-call-btn').style.display = someoneHasOne ? 'block' : 'none';
         }
@@ -828,7 +829,8 @@
         }
 
         function callOneCardBtn() {
-            const msg = "원카드! 선언 성공! 다른 플레이어에게 벌칙 4장이 부여됩니다.";
+            const myName = getMyNickname();
+            const msg = `${myName}님이 원카드!를 외쳤습니다! 다른 플레이어에게 벌칙 4장이 부여됩니다.`;
             if (isHost) {
                 broadcastToAll({ type: 'ALERT', msg: msg });
                 alert(msg);
