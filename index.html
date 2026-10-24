@@ -72,6 +72,8 @@
 
         .modal-rule { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; }
         .modal-rule-content { background: #222; padding: 20px; border-radius: 8px; width: 90%; max-width: 400px; max-height: 80vh; overflow-y: auto; font-size: 12px; line-height: 1.5; color: #ddd; }
+        .hw-card { width: 48px; height: 68px; border-radius: 5px; background:#f5e7c5; color:#222; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:11px; font-weight:bold; border:2px solid #9b7040; cursor:pointer; }
+        .hw-card small { font-size:9px; color:#8b1e1e; }
     </style>
 </head>
 <body>
@@ -104,6 +106,7 @@
                 <div class="toggle-item"><span>세븐포커</span><input type="checkbox" id="toggle-poker"></div>
                 <div class="toggle-item"><span>홀덤</span><input type="checkbox" id="toggle-holdem"></div>
                 <div class="toggle-item"><span>원카드 (멀티)</span><input type="checkbox" id="toggle-onecard"></div>
+                <div class="toggle-item"><span>맞고 (2인 멀티)</span><input type="checkbox" id="toggle-hwatu"></div>
             </div>
             <button id="btn-save-games" class="btn-header" style="width:100%; margin-bottom:10px;" onclick="updateGameStatus()">게임 설정 저장</button>
 
@@ -129,6 +132,7 @@
             <button id="tab-btn-poker" class="tab-btn visible" onclick="switchGame('poker')">세븐포커</button>
             <button id="tab-btn-holdem" class="tab-btn visible" onclick="switchGame('holdem')">홀덤</button>
             <button id="tab-btn-onecard" class="tab-btn visible" onclick="switchGame('onecard')">원카드</button>
+            <button id="tab-btn-hwatu" class="tab-btn visible" onclick="switchGame('hwatu')">맞고</button>
         </div>
 
         <!-- 1. 주사위 -->
@@ -246,7 +250,7 @@
 
                 <div style="display: flex; gap: 4px; margin-bottom: 6px;">
                     <button class="btn-header" onclick="createOneCardRoom()">방 만들기</button>
-                    <input type="text" id="oc-room-id" placeholder="방 코드 입력" style="flex:1; background:#222; color:#fff; border:1px solid #444; padding:4px; font-size:11px;">
+                    <input type="text" id="oc-room-id" placeholder="만들거나 참여할 방 코드 (4~24자)" maxlength="24" style="flex:1; background:#222; color:#fff; border:1px solid #444; padding:4px; font-size:11px;">
                     <button class="btn-header" onclick="joinOneCardRoom()">참여하기</button>
                     <button id="oc-leave-btn" class="btn-header" style="display:none;" onclick="leaveOneCardRoom()">나가기</button>
                 </div>
@@ -292,6 +296,26 @@
             <div id="oc-result" class="result-msg"></div>
         </div>
 
+        <div id="game-hwatu" class="game-section">
+            <div class="multi-panel">
+                <b>맞고 (2인용) &nbsp;·&nbsp; 방 코드</b>
+                <div style="display:flex; gap:4px; margin-top:8px;">
+                    <input id="hw-room-code" type="text" maxlength="24" placeholder="방 코드 (4~24자)" style="flex:1;background:#222;color:#fff;border:1px solid #444;padding:6px;">
+                    <button class="btn-header" onclick="createHwatuRoom()">방 만들기</button>
+                    <button class="btn-header" onclick="joinHwatuRoom()">참여</button>
+                    <button id="hw-leave-btn" class="btn-header" style="display:none" onclick="leaveOneCardRoom()">나가기</button>
+                </div>
+                <div id="hw-status" class="dealer-log" style="margin-top:8px">방 코드를 정해 방을 만들거나 참여하세요.</div>
+                <div id="hw-players" class="player-status-list"><span style="color:#777">접속한 플레이어가 없습니다.</span></div>
+                <button id="hw-start-btn" class="action-btn btn-primary" style="display:none" onclick="startHwatuGame()">맞고 시작 (방장)</button>
+            </div>
+            <div class="card-area"><div class="area-title">상대 패</div><div id="hw-opponent" class="cards"></div></div>
+            <div class="card-area"><div class="area-title">바닥</div><div id="hw-field" class="cards"></div></div>
+            <div class="card-area"><div class="area-title">내 패 (카드를 선택)</div><div id="hw-hand" class="cards"></div></div>
+            <div id="hw-score" class="result-msg">점수: 나 0점 · 상대 0점</div>
+            <div class="action-row"><button id="hw-koi-btn" class="action-btn" style="display:none" onclick="hwatuKoi(true)">고</button><button id="hw-stop-btn" class="action-btn btn-primary" style="display:none" onclick="hwatuKoi(false)">스톱</button></div>
+        </div>
+
     </div>
 
     <!-- 원카드 규칙 모달 창 -->
@@ -318,7 +342,7 @@
         const GITHUB_CONFIG = { owner: "kangin2599-crypto", repo: "TEST", issueNumber: 1 };
         const ADMIN_PASSWORD = "kangin2599!";
         const DEFAULT_MONEY = 1000000;
-        const GAMES = ['dice', 'bj', 'poker', 'holdem', 'onecard'];
+        const GAMES = ['dice', 'bj', 'poker', 'holdem', 'onecard', 'hwatu'];
 
         function safeJSON(str, fallback) { try { const v = JSON.parse(str); return v == null ? fallback : v; } catch (e) { return fallback; } }
 
@@ -327,7 +351,7 @@
         if (isNaN(currentMoney) || currentMoney < 0) currentMoney = DEFAULT_MONEY;
         let usedCouponsLocal = safeJSON(localStorage.getItem('casino_used_coupons'), {});
         let coupons = [], remoteLoaded = false;
-        let gameStatus = { dice: true, bj: true, poker: true, holdem: true, onecard: true };
+        let gameStatus = { dice: true, bj: true, poker: true, holdem: true, onecard: true, hwatu: true };
         let activeGameType = 'dice';
 
         /* ---------- GitHub 토큰 ---------- */
@@ -587,8 +611,9 @@
 
         /* --- 다인원 원카드 & 채팅 (방장이 덱/모든 손패/규칙 판정을 관리) --- */
         const MAX_PLAYERS = 6;
-        let peer = null, myPeerId = '', peerCallbacks = [];
+        let peer = null, myPeerId = '', peerCallbacks = [], requestedPeerId = '';
         let isHost = false;
+        let roomGameType = 'onecard';
         let connections = {};   // 방장용: { peerId: conn }
         let hostConn = null;    // 참여자용: 방장과의 conn
 
@@ -602,10 +627,13 @@
 
         // 방장 전용 상태
         let hostHands = {}, hostDeck = [], hostDiscard = [], ocCheck = null;
+        let hwHands = {}, hwDeck = [], hwField = [], hwCaptured = {}, hwTurn = 0, hwSelected = -1, hwRoundActive = false, hwWaitingKoi = false;
         let flashTimer = null;
 
         /* ---------- 유틸 ---------- */
         function cleanText(v, max) { return String(v == null ? '' : v).replace(/[\r\n\t]+/g, ' ').trim().slice(0, max); }
+        function validRoomCode(code) { return /^[A-Za-z0-9_-]{4,24}$/.test(code); }
+        function roomPeerId(game, code) { return `${game === 'hwatu' ? 'hw' : 'oc'}-${code}`; }
         function mod(n, m) { return ((n % m) + m) % m; }
         function shuffleArray(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
         function getMyNickname() { const el = $('oc-nickname'); return cleanText(el && el.value, 12) || '플레이어'; }
@@ -660,7 +688,8 @@
             if (peer && myPeerId) { if (cb) cb(myPeerId); return; }
             if (cb) peerCallbacks.push(cb);
             if (peer) return; // 이미 연결 중이면 콜백만 대기열에 추가
-            peer = new Peer();
+            peer = requestedPeerId ? new Peer(requestedPeerId) : new Peer();
+            requestedPeerId = '';
             peer.on('open', (id) => {
                 myPeerId = id;
                 const cbs = peerCallbacks; peerCallbacks = [];
@@ -688,20 +717,24 @@
         function createOneCardRoom() {
             if (ocGameActive && !confirm('진행 중인 게임을 나가고 새 방을 만들까요? (판돈은 돌려받지 못합니다)')) return;
             leaveRoom();
+            const code = $('oc-room-id').value.trim().toLowerCase();
+            if (!validRoomCode(code)) return alert('방 코드는 영문/숫자/_/- 4~24자로 입력하세요.');
+            requestedPeerId = roomPeerId('onecard', code);
             initPeer((id) => {
                 isHost = true; connections = {};
-                roomPlayers = [{ id, name: getMyNickname() + ' (방장)', cardCount: 0, safe: false }];
-                myIndex = 0;
-                $('oc-room-id').value = id;
-                try { navigator.clipboard.writeText(id).catch(() => {}); } catch (e) {}
-                appendChatLog('시스템', `방이 생성되었습니다. 방 코드: ${id} (참여자에게 공유하세요)`);
+                roomGameType = 'onecard';
+                roomPlayers = [{ id, name: getMyNickname() + ' (방장)', cardCount: 0, safe: false }]; myIndex = 0;
+                $('oc-room-id').value = code;
+                try { navigator.clipboard.writeText(code).catch(() => {}); } catch (e) {}
+                appendChatLog('시스템', `방이 생성되었습니다. 방 코드: ${code} (참여자에게 공유하세요)`);
                 updateRoleUI(); updatePlayerListUI(); updateOCStatus('참가자를 기다리는 중입니다.');
             });
         }
 
         function joinOneCardRoom() {
-            const targetId = $('oc-room-id').value.trim();
-            if (!targetId) return alert('방 코드를 입력하세요.');
+            const code = $('oc-room-id').value.trim().toLowerCase();
+            if (!validRoomCode(code)) return alert('방 코드는 영문/숫자/_/- 4~24자로 입력하세요.');
+            const targetId = roomPeerId('onecard', code);
             if (ocGameActive && !confirm('진행 중인 게임을 나가고 다른 방에 참여할까요? (판돈은 돌려받지 못합니다)')) return;
             leaveRoom();
             initPeer((id) => {
@@ -716,7 +749,7 @@
                 conn.on('open', () => {
                     opened = true;
                     updateRoleUI();
-                    conn.send({ type: 'JOIN_ROOM', name: getMyNickname() });
+                    roomGameType = 'onecard'; conn.send({ type: 'JOIN_ROOM', name: getMyNickname(), game: 'onecard' });
                 });
                 conn.on('data', handleGuestData);
                 conn.on('close', () => { if (hostConn === conn) onHostLost(); });
@@ -735,13 +768,16 @@
             isHost = false;
             if (ocCheck) { clearTimeout(ocCheck.timer); ocCheck = null; }
             ocGameActive = false; roomPlayers = []; myIndex = -1;
+            hwRoundActive = false; hwWaitingKoi = false; hwSelected = -1; hwHands = {}; hwDeck = []; hwField = []; hwCaptured = {};
             hostHands = {}; hostDeck = []; hostDiscard = [];
             ocMyCards = []; ocTopCard = null; ocAttackStack = 0; currentTurnIdx = 0; turnDirection = 1;
             try { if (oldHostConn) oldHostConn.close(); } catch (e) {}
             Object.values(oldConns).forEach(c => { try { c.close(); } catch (e) {} });
+            if (peer) { try { peer.destroy(); } catch (e) {} peer = null; myPeerId = ''; peerCallbacks = []; }
             $('oc-result').innerText = '';
             updateRoleUI(); renderOneCardUI(); updatePlayerListUI();
             updateOCStatus('게임 시작을 눌러주세요.');
+            renderHwatu(); updateHwatuRole();
         }
 
         function onHostLost() {
@@ -754,6 +790,108 @@
             alert(msg);
         }
 
+        /* ---------- 맞고: 2인용 간단 고스톱 (방장이 판정/덱을 관리) ---------- */
+        function createHwatuRoom() {
+            const code = $('hw-room-code').value.trim().toLowerCase();
+            if (!validRoomCode(code)) return alert('방 코드는 영문/숫자/_/- 4~24자로 입력하세요.');
+            if ((ocGameActive || hwRoundActive) && !confirm('진행 중인 게임을 나가고 새 방을 만들까요?')) return;
+            leaveRoom(); requestedPeerId = roomPeerId('hwatu', code);
+            initPeer(id => {
+                isHost = true; roomGameType = 'hwatu'; connections = {};
+                roomPlayers = [{ id, name: getMyNickname() + ' (방장)', cardCount: 0, safe: false }]; myIndex = 0;
+                $('hw-room-code').value = code;
+                try { navigator.clipboard.writeText(code).catch(() => {}); } catch (e) {}
+                $('hw-status').innerText = `방장 · 코드: ${code} · 참여자를 기다리는 중`;
+                updateHwatuRole(); updatePlayerListUI(); renderHwatu();
+            });
+        }
+        function joinHwatuRoom() {
+            const code = $('hw-room-code').value.trim().toLowerCase();
+            if (!validRoomCode(code)) return alert('방 코드는 영문/숫자/_/- 4~24자로 입력하세요.');
+            if ((ocGameActive || hwRoundActive) && !confirm('진행 중인 게임을 나가고 참여할까요?')) return;
+            const targetId = roomPeerId('hwatu', code);
+            leaveRoom(); initPeer(id => {
+                if (targetId === id) return alert('자신이 만든 방 코드입니다.');
+                const conn = peer.connect(targetId, { reliable: true }); hostConn = conn; isHost = false; roomGameType = 'hwatu';
+                updateHwatuRole(); let opened = false;
+                setTimeout(() => { if (!opened && hostConn === conn) { alert('방에 연결하지 못했습니다. 코드를 확인하세요.'); leaveRoom(); } }, 10000);
+                conn.on('open', () => { opened = true; conn.send({ type:'JOIN_ROOM', name:getMyNickname(), game:'hwatu' }); updateHwatuRole(); });
+                conn.on('data', handleGuestData); conn.on('close', () => { if (hostConn === conn) onHostLost(); }); conn.on('error', () => {});
+            });
+        }
+        function makeHwatuDeck() {
+            const deck = [];
+            for (let month=1; month<=12; month++) for (let copy=0; copy<4; copy++) {
+                const kind = copy===0 ? (month===1||month===3||month===8||month===11||month===12 ? '광' : '열') : copy===1 ? '띠' : '피';
+                deck.push({ month, kind, id:`${month}-${copy}` });
+            }
+            return shuffleArray(deck);
+        }
+        function hwScore(cards) {
+            const gwang=cards.filter(c=>c.kind==='광').length, yeol=cards.filter(c=>c.kind==='열').length, ddi=cards.filter(c=>c.kind==='띠').length, pi=cards.filter(c=>c.kind==='피').length;
+            return Math.max(0,(gwang>=3?gwang-2:0)+(yeol>=5?yeol-4:0)+(ddi>=5?ddi-4:0)+(pi>=10?pi-9:0));
+        }
+        function startHwatuGame() {
+            if (!isHost || roomGameType!=='hwatu' || hwRoundActive) return;
+            if (roomPlayers.length!==2) return alert('맞고는 방장을 포함해 정확히 2명이 필요합니다.');
+            const deck=makeHwatuDeck(); hwField=deck.splice(0,8); hwHands={}; hwCaptured={};
+            roomPlayers.forEach(p=>{hwHands[p.id]=deck.splice(0,10);hwCaptured[p.id]=[];});
+            hwDeck=deck; hwTurn=0; hwRoundActive=true; hwWaitingKoi=false; hwSelected=-1;
+            hostSyncHwatu('맞고를 시작합니다. 내 패에서 낼 패를 선택하세요.');
+        }
+        function hostHwatuPlay(pid, index) {
+            if (!hwRoundActive || hwWaitingKoi || roomPlayers[hwTurn]?.id!==pid) return;
+            const hand=hwHands[pid]; index=Number(index); if (!Number.isInteger(index)||index<0||index>=hand.length) return;
+            const card=hand.splice(index,1)[0]; hwResolveCard(pid,card);
+        }
+        function hwResolveCard(pid, card) {
+            const matches=hwField.map((c,i)=>c.month===card.month?i:-1).filter(i=>i>=0);
+            if(matches.length===1){hwCaptured[pid].push(card,hwField.splice(matches[0],1)[0]);}
+            else if(matches.length===2){hwCaptured[pid].push(card,hwField.splice(matches[0],1)[0]);}
+            else if(matches.length>=3){hwCaptured[pid].push(card,...hwField.filter(c=>c.month===card.month));hwField=hwField.filter(c=>c.month!==card.month);}
+            else hwField.push(card);
+            // 뒤집기: 같은 달 패가 있으면 가져가고, 없으면 바닥에 둔다.
+            const drawn=hwDeck.pop(); if(drawn){const found=hwField.findIndex(c=>c.month===drawn.month); if(found>=0)hwCaptured[pid].push(drawn,hwField.splice(found,1)[0]);else hwField.push(drawn);}
+            const score=hwScore(hwCaptured[pid]);
+            if(score>=7){hwWaitingKoi=true;hostSyncHwatu(`${roomPlayers[hwTurn].name}님 ${score}점! 고 또는 스톱을 선택하세요.`);return;}
+            if(hwDeck.length===0 && roomPlayers.every(p=>(hwHands[p.id]||[]).length===0)){const scores=roomPlayers.map(p=>hwScore(hwCaptured[p.id]||[]));hwRoundActive=false;hostEndHwatu(scores[0]>=scores[1]?roomPlayers[0].id:roomPlayers[1].id);return;}
+            hwTurn=1-hwTurn; hostSyncHwatu(`${roomPlayers[hwTurn].name}님 차례입니다.`);
+        }
+        function hwatuKoi(go) {
+            if (!hwWaitingKoi || roomPlayers[hwTurn]?.id!==myPeerId) return;
+            if(isHost) hostHwatuKoi(myPeerId,go); else sendToHost({type:'HW_KOI',go});
+        }
+        function hostHwatuKoi(pid,go) {
+            if(!hwWaitingKoi||roomPlayers[hwTurn]?.id!==pid)return;
+            hwWaitingKoi=false;
+            if(!go){hwRoundActive=false;hostEndHwatu(pid);return;}
+            hwTurn=1-hwTurn;hostSyncHwatu(`${roomPlayers[hwTurn].name}님 차례입니다. (고)`);
+        }
+        function hostEndHwatu(winnerId) {
+            const other=roomPlayers.find(p=>p.id!==winnerId), win=hwScore(hwCaptured[winnerId]||[]), lose=hwScore(hwCaptured[other?.id]||[]);
+            hwRoundActive=false;hostSyncHwatu(`${roomPlayers.find(p=>p.id===winnerId)?.name}님 승리!`);
+            broadcastToAll({type:'HW_OVER',winnerId,win,lose}); renderHwatu();
+        }
+        function hostSyncHwatu(msg) {
+            roomPlayers.forEach(p=>{p.hwCount=(hwHands[p.id]||[]).length;p.hwScore=hwScore(hwCaptured[p.id]||[]);});
+            const players=roomPlayers.map(p=>Object.assign({},p));
+            roomPlayers.forEach(p=>{if(p.id!==myPeerId)sendTo(p.id,{type:'HW_STATE',players,field:hwField,hand:hwHands[p.id]||[],captured:hwCaptured,turn:hwTurn,active:hwRoundActive,waiting:hwWaitingKoi,msg});});
+            renderHwatu(); updateHwatuRole(); updatePlayerListUI(); $('hw-status').innerText=msg;
+        }
+        function renderHwatu() {
+            const field=$('hw-field'), hand=$('hw-hand'), opp=$('hw-opponent'); if(!field)return;
+            field.innerHTML=''; hand.innerHTML=''; opp.innerHTML='';
+            hwField.forEach(c=>field.appendChild(hwCardEl(c)));
+            const mine=hwHands[myPeerId]||[];
+            mine.forEach((c,i)=>{const el=hwCardEl(c);if(i===hwSelected)el.style.outline='3px solid #4caf50';el.onclick=()=>{if(!hwRoundActive||hwTurn!==myIndex)return; if(isHost)hostHwatuPlay(myPeerId,i);else sendToHost({type:'HW_PLAY',index:i}); hwSelected=-1;};hand.appendChild(el);});
+            const other=roomPlayers.find(p=>p.id!==myPeerId); for(let i=0;i<(other?.hwCount||0);i++){const el=document.createElement('div');el.className='hw-card';el.textContent='🂠';opp.appendChild(el);}
+            const mineScore=hwScore((hwCaptured[myPeerId]||[])), otherScore=hwScore((hwCaptured[other?.id]||[]));
+            $('hw-score').innerText=`점수: 나 ${mineScore}점 · 상대 ${otherScore}점`;
+            $('hw-koi-btn').style.display=hwWaitingKoi&&roomPlayers[hwTurn]?.id===myPeerId?'inline-block':'none';$('hw-stop-btn').style.display=$('hw-koi-btn').style.display;
+        }
+        function hwCardEl(c){const el=document.createElement('div');el.className='hw-card';el.innerHTML=`<small>${c.month}월 · ${c.kind}</small><b>${c.kind==='광'?'☀️':c.kind==='열'?'🌸':c.kind==='띠'?'🎗️':'●'}</b>`;return el;}
+        function updateHwatuRole(){if(!$('hw-start-btn'))return;$('hw-start-btn').style.display=isHost&&roomGameType==='hwatu'&&!hwRoundActive?'block':'none';$('hw-leave-btn').style.display=(isHost||!!hostConn)&&roomGameType==='hwatu'?'inline-block':'none';}
+
         function updateRoleUI() {
             const joined = !!hostConn;
             $('oc-start-btn').style.display = (isHost && !ocGameActive) ? 'inline-block' : 'none';
@@ -761,9 +899,10 @@
             $('ocBet').readOnly = joined;
             $('oc-leave-btn').style.display = (isHost || joined) ? 'inline-block' : 'none';
             let s = '상태: 대기 중';
-            if (isHost) s = `방장 | 코드: ${myPeerId}`;
+            if (isHost) s = `방장 | 코드: ${myPeerId.replace(/^(oc|hw)-/, '')}`;
             else if (joined) s = hostConn.open ? '방에 참여 중' : '방에 연결하는 중...';
             $('oc-multi-status').innerText = s;
+            updateHwatuRole();
         }
 
         function broadcastRoomState() {
@@ -776,7 +915,7 @@
             listEl.innerHTML = '';
             if (roomPlayers.length === 0) {
                 const s = document.createElement('span'); s.style.color = '#777'; s.textContent = '접속한 플레이어가 없습니다.';
-                listEl.appendChild(s); return;
+                listEl.appendChild(s); const hwList=$('hw-players'); if(hwList)hwList.innerHTML='<span style="color:#777">접속한 플레이어가 없습니다.</span>'; return;
             }
             roomPlayers.forEach((p, idx) => {
                 const d = document.createElement('div');
@@ -784,6 +923,7 @@
                 d.textContent = `${p.name} (${p.cardCount}장)${p.safe ? ' ✅' : ''}`;
                 listEl.appendChild(d);
             });
+            const hwList=$('hw-players'); if(hwList){hwList.innerHTML=''; if(!roomPlayers.length){hwList.innerHTML='<span style="color:#777">접속한 플레이어가 없습니다.</span>';return;} roomPlayers.forEach((p,idx)=>{const d=document.createElement('div');d.className='player-badge'+(hwRoundActive&&idx===hwTurn?' active-turn':'');d.textContent=`${p.name}${roomGameType==='hwatu'&&hwRoundActive?' · '+(p.id===myPeerId?(hwHands[p.id]||[]).length:(p.hwCount||0))+'장':''}`;hwList.appendChild(d);});}
         }
 
         function updateOCStatus(msg) { $('oc-status-log').innerText = msg; }
@@ -1006,8 +1146,10 @@
                         sendTo(peerId, { type: 'JOIN_DENIED', msg });
                         setTimeout(() => { const c = connections[peerId]; if (c) c.close(); }, 300);
                     };
-                    if (ocGameActive || ocCheck) return deny('게임이 진행 중이라 지금은 입장할 수 없습니다.');
-                    if (roomPlayers.length >= MAX_PLAYERS) return deny(`최대 ${MAX_PLAYERS}명까지 참여할 수 있습니다.`);
+                    if ((data.game || 'onecard') !== roomGameType) return deny('다른 게임의 방 코드입니다. 게임 탭과 코드를 확인하세요.');
+                    if (ocGameActive || ocCheck || hwRoundActive) return deny('게임이 진행 중이라 지금은 입장할 수 없습니다.');
+                    const roomLimit = roomGameType === 'hwatu' ? 2 : MAX_PLAYERS;
+                    if (roomPlayers.length >= roomLimit) return deny(`이 방은 최대 ${roomLimit}명까지 참여할 수 있습니다.`);
                     let base = cleanText(data.name, 12) || '플레이어', name = base, n = 2;
                     while (roomPlayers.some(x => x.name.replace(' (방장)', '') === name)) name = `${base}${n++}`;
                     roomPlayers.push({ id: peerId, name, cardCount: 0, safe: false });
@@ -1028,6 +1170,8 @@
                 case 'PLAY_CARD': if (p) hostPlay(peerId, data.index); break;
                 case 'DRAW_CARD': if (p) hostDraw(peerId); break;
                 case 'CALL_ONECARD': if (p) hostCall(peerId); break;
+                case 'HW_PLAY': if (p && roomGameType==='hwatu') hostHwatuPlay(peerId,data.index); break;
+                case 'HW_KOI': if (p && roomGameType==='hwatu') hostHwatuKoi(peerId,data.go===true); break;
             }
         }
 
@@ -1038,7 +1182,7 @@
                 case 'ROOM_STATE':
                     roomPlayers = data.players;
                     myIndex = roomPlayers.findIndex(p => p.id === myPeerId);
-                    updatePlayerListUI();
+                    updatePlayerListUI(); renderHwatu(); updateHwatuRole();
                     break;
                 case 'BET_CHECK':
                     sendToHost({ type: 'BET_REPLY', ok: currentMoney >= data.bet });
@@ -1060,6 +1204,11 @@
                 case 'NOTICE': flashResult(cleanText(data.msg, 100)); break;
                 case 'JOIN_DENIED': alert(cleanText(data.msg, 100)); leaveRoom(); break;
                 case 'GAME_OVER': applyGameOver(data); break;
+                case 'HW_STATE':
+                    roomPlayers=data.players; hwField=data.field||[]; hwHands={}; hwHands[myPeerId]=data.hand||[];
+                    hwCaptured=data.captured||{}; hwTurn=data.turn; hwRoundActive=data.active; hwWaitingKoi=data.waiting;
+                    myIndex=roomPlayers.findIndex(p=>p.id===myPeerId); $('hw-status').innerText=cleanText(data.msg,140); renderHwatu(); updateHwatuRole(); break;
+                case 'HW_OVER': $('hw-status').innerText=`게임 종료 · ${roomPlayers.find(p=>p.id===data.winnerId)?.name||'플레이어'} 승리 (${data.win}점 대 ${data.lose}점)`; hwRoundActive=false; renderHwatu(); updateHwatuRole(); break;
             }
         }
 
