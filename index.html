@@ -42,6 +42,9 @@
         .card { width: 42px; height: 60px; background: #ffffff; color: #000000; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; border: 1px solid #cccccc; cursor: pointer; user-select: none; }
         .card.red { color: #d32f2f; }
         .card.joker { color: #7b1fa2; background: #fffde7; }
+        .card.joker .card-rank { font-size: 11px; }
+        .card.dim { opacity: 0.35; }
+        .btn-header:disabled { opacity: 0.5; cursor: default; }
         .card-suit { font-size: 10px; }
         .card-rank { font-size: 14px; }
 
@@ -51,7 +54,7 @@
         .admin-panel { background: #121212; border: 1px solid #555; padding: 12px; border-radius: 8px; margin-bottom: 12px; text-align: left; font-size: 12px; display: none; }
         .admin-panel h4 { margin: 0 0 8px 0; color: #fff; border-bottom: 1px solid #333; padding-bottom: 4px; }
         .coupon-list { max-height: 120px; overflow-y: auto; margin-bottom: 8px; background: #222; padding: 6px; border-radius: 4px; }
-        .coupon-item { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #333; }
+        .coupon-item { gap: 6px; word-break: break-all; display: flex; justify-content: space-between; align-items: center; padding: 4px 0; border-bottom: 1px solid #333; }
         
         .game-toggle-box { display: flex; flex-direction: column; gap: 6px; background: #222; padding: 8px; border-radius: 4px; margin-bottom: 10px; }
         .toggle-item { display: flex; justify-content: space-between; align-items: center; }
@@ -59,7 +62,7 @@
         .multi-panel { background: #181818; border: 1px solid #333; padding: 8px; border-radius: 6px; margin-bottom: 10px; font-size: 12px; }
         
         .chat-box { background: #121212; border: 1px solid #333; border-radius: 6px; padding: 6px; margin-top: 8px; }
-        .chat-messages { height: 60px; overflow-y: auto; font-size: 11px; color: #ccc; margin-bottom: 4px; display: flex; flex-direction: column; gap: 2px; }
+        .chat-messages { height: 90px; overflow-y: auto; font-size: 11px; color: #ccc; margin-bottom: 4px; display: flex; flex-direction: column; gap: 2px; }
         .chat-input-row { display: flex; gap: 4px; }
         .chat-input-row input { flex: 1; background: #222; border: 1px solid #444; color: #fff; padding: 4px; font-size: 11px; border-radius: 4px; }
 
@@ -102,7 +105,7 @@
                 <div class="toggle-item"><span>홀덤</span><input type="checkbox" id="toggle-holdem"></div>
                 <div class="toggle-item"><span>원카드 (멀티)</span><input type="checkbox" id="toggle-onecard"></div>
             </div>
-            <button class="btn-header" style="width:100%; margin-bottom:10px;" onclick="updateGameStatus()">게임 설정 저장</button>
+            <button id="btn-save-games" class="btn-header" style="width:100%; margin-bottom:10px;" onclick="updateGameStatus()">게임 설정 저장</button>
 
             <h4>공용 쿠폰 목록</h4>
             <div class="coupon-list" id="coupon-list-box">불러오는 중...</div>
@@ -245,6 +248,7 @@
                     <button class="btn-header" onclick="createOneCardRoom()">방 만들기</button>
                     <input type="text" id="oc-room-id" placeholder="방 코드 입력" style="flex:1; background:#222; color:#fff; border:1px solid #444; padding:4px; font-size:11px;">
                     <button class="btn-header" onclick="joinOneCardRoom()">참여하기</button>
+                    <button id="oc-leave-btn" class="btn-header" style="display:none;" onclick="leaveOneCardRoom()">나가기</button>
                 </div>
                 
                 <!-- 접속자 목록 표시 -->
@@ -255,7 +259,7 @@
                 <div class="chat-box">
                     <div id="chat-messages" class="chat-messages"><div>시스템: 채팅방에 접속했습니다.</div></div>
                     <div class="chat-input-row">
-                        <input type="text" id="chat-input" placeholder="메시지 입력..." onkeypress="if(event.key==='Enter') sendChatMessage()">
+                        <input type="text" id="chat-input" placeholder="메시지 입력..." onkeydown="if(event.key==='Enter' && !event.isComposing) sendChatMessage()">
                         <button class="btn-header" onclick="sendChatMessage()">전송</button>
                     </div>
                 </div>
@@ -263,7 +267,7 @@
 
             <div class="bet-box">
                 판돈: <input type="number" id="ocBet" min="1" value="10000"> L
-                <button class="action-btn btn-primary" id="oc-start-btn" style="width: 80px; padding: 4px; margin-left: 8px; display:none;" onclick="startMultiOneCardGame()">게임 시작(방장)</button>
+                <button class="action-btn btn-primary" id="oc-start-btn" style="width: 100px; padding: 4px; margin-left: 8px; display:none;" onclick="startMultiOneCardGame()">게임 시작(방장)</button>
             </div>
 
             <div id="oc-status-log" class="dealer-log">게임 시작을 눌러주세요.</div>
@@ -283,7 +287,7 @@
             </div>
 
             <div id="oc-controls" class="action-row" style="margin-top:10px;">
-                <button class="action-btn" onclick="drawOneCard()">카드 먹기 / 패스</button>
+                <button id="oc-draw-btn" class="action-btn" onclick="drawOneCard()">카드 먹기 / 패스</button>
             </div>
             <div id="oc-result" class="result-msg"></div>
         </div>
@@ -291,18 +295,18 @@
     </div>
 
     <!-- 원카드 규칙 모달 창 -->
-    <div id="rule-modal" class="modal-rule">
+    <div id="rule-modal" class="modal-rule" onclick="if(event.target===this) closeRuleModal()">
         <div class="modal-rule-content">
             <h3 style="margin-top:0; color:#fff; border-bottom:1px solid #444; padding-bottom:6px;">원카드 게임 규칙 요약</h3>
             <p><b>1. 기본 진행:</b> 바닥에 놓인 카드와 <b>문양(♠♥♦♣)</b> 또는 <b>숫자/종류</b>가 같은 카드를 낼 수 있습니다.</p>
-            <p><b>2. 공격 및 방어 카드:</b> 2(2장), A(3장), 조커(흑백 5장, 컬러 7장) 공격 및 누적 방어 가능.</p>
+            <p><b>2. 공격 및 방어 카드:</b> 2(2장), A(3장), 조커(흑백 5장, 컬러 7장)로 공격하며 장수가 누적됩니다. 공격을 받으면 <b>같은 공격 카드(2↔2, A↔A) 또는 조커</b>로만 막을 수 있고, 막지 못하면 누적된 장수만큼 카드를 받습니다.</p>
             <p><b>3. 특수 카드:</b></p>
             <ul style="padding-left:15px; margin:4px 0;">
                 <li><b>J (점프):</b> 다음 사람 턴 건너뜀</li>
                 <li><b>Q (역순):</b> 진행 방향 반대로 전환</li>
                 <li><b>K (킹):</b> 자기 턴 한 번 더 실행</li>
             </ul>
-            <p><b>4. 원카드! 버튼:</b> 다른 플레이어의 카드가 1장 남았을 때 먼저 누르면 4장 벌칙!</p>
+            <p><b>4. 원카드! 버튼:</b> 카드가 1장 남은 사람은 먼저 <b>원카드!</b>를 눌러야 안전합니다. 본인보다 먼저 다른 플레이어가 누르면 그 사람이 벌칙 4장을 받습니다.</p>
             <div style="text-align:right; margin-top:12px;">
                 <button class="btn-header" onclick="closeRuleModal()">닫기</button>
             </div>
@@ -310,88 +314,223 @@
     </div>
 
     <script>
+        const $ = (id) => document.getElementById(id);
         const GITHUB_CONFIG = { owner: "kangin2599-crypto", repo: "TEST", issueNumber: 1 };
         const ADMIN_PASSWORD = "kangin2599!";
         const DEFAULT_MONEY = 1000000;
+        const GAMES = ['dice', 'bj', 'poker', 'holdem', 'onecard'];
 
-        let currentMoney = parseInt(localStorage.getItem('casino_money')) || DEFAULT_MONEY;
-        let coupons = [], usedCouponsLocal = JSON.parse(localStorage.getItem('casino_used_coupons')) || {};
+        function safeJSON(str, fallback) { try { const v = JSON.parse(str); return v == null ? fallback : v; } catch (e) { return fallback; } }
+
+        // 잔액이 0일 때도 0으로 유지되도록 NaN 여부로만 기본값 처리
+        let currentMoney = parseInt(localStorage.getItem('casino_money'));
+        if (isNaN(currentMoney) || currentMoney < 0) currentMoney = DEFAULT_MONEY;
+        let usedCouponsLocal = safeJSON(localStorage.getItem('casino_used_coupons'), {});
+        let coupons = [], remoteLoaded = false;
         let gameStatus = { dice: true, bj: true, poker: true, holdem: true, onecard: true };
         let activeGameType = 'dice';
 
+        /* ---------- GitHub 토큰 ---------- */
         const GH_TOKEN_KEY = 'casino_gh_token';
         function saveGithubToken() {
-            const t = document.getElementById('gh-token-input').value.trim();
+            const t = $('gh-token-input').value.trim();
             if (!t) return alert('토큰을 입력해 주세요.');
             localStorage.setItem(GH_TOKEN_KEY, t);
-            document.getElementById('gh-token-input').value = '';
+            $('gh-token-input').value = '';
             updateTokenStatus();
             alert('토큰이 저장되었습니다.');
         }
         function clearGithubToken() { localStorage.removeItem(GH_TOKEN_KEY); updateTokenStatus(); }
         function getGithubToken() { return localStorage.getItem(GH_TOKEN_KEY) || ''; }
         function updateTokenStatus() {
-            const el = document.getElementById('token-status');
-            if (el) el.innerText = getGithubToken() ? '✅ 토큰 등록됨' : '⚠️ 토큰 미등록';
+            const el = $('token-status');
+            if (el) el.innerText = getGithubToken() ? '✅ 토큰 등록됨' : '⚠️ 토큰 미등록 (설정/쿠폰 저장 불가)';
+        }
+
+        /* ---------- GitHub Issue 로 설정·쿠폰 동기화 ----------
+           issue 본문(JSON): { dice:true, bj:true, poker:true, holdem:true, onecard:true, coupons:[{code,amount}] } */
+        function issueApiUrl() { return `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}`; }
+
+        function normalizeConfig(p) {
+            p = (p && typeof p === 'object') ? p : {};
+            const games = {};
+            GAMES.forEach(g => { games[g] = (typeof p[g] === 'boolean') ? p[g] : true; });
+            const list = Array.isArray(p.coupons) ? p.coupons : [];
+            const cps = list
+                .filter(c => c && typeof c.code === 'string' && c.code.trim() && Number(c.amount) > 0)
+                .map(c => ({ code: c.code.trim(), amount: Math.floor(Number(c.amount)) }));
+            return { games, coupons: cps };
+        }
+
+        async function fetchRemoteConfig(withToken) {
+            const headers = { 'Accept': 'application/vnd.github.v3+json' };
+            if (withToken && getGithubToken()) headers['Authorization'] = `Bearer ${getGithubToken()}`;
+            const res = await fetch(`${issueApiUrl()}?t=${Date.now()}`, { headers, cache: 'no-store' });
+            if (!res.ok) { const e = new Error('HTTP ' + res.status); e.status = res.status; throw e; }
+            const issue = await res.json();
+            return normalizeConfig(safeJSON((issue.body || '').trim(), {}));
+        }
+
+        // 최신 내용을 다시 읽어서 mutate 한 뒤 저장 (다른 관리자의 변경을 덮어쓰지 않도록)
+        async function writeRemoteConfig(mutate) {
+            const token = getGithubToken();
+            if (!token) { const e = new Error('NO_TOKEN'); e.code = 'NO_TOKEN'; throw e; }
+            const cur = await fetchRemoteConfig(true);
+            const next = mutate(cur) || cur;
+            const body = JSON.stringify(Object.assign({}, next.games, { coupons: next.coupons }), null, 2);
+            const res = await fetch(issueApiUrl(), {
+                method: 'PATCH',
+                headers: { 'Accept': 'application/vnd.github.v3+json', 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ body })
+            });
+            if (!res.ok) { const e = new Error('HTTP ' + res.status); e.status = res.status; throw e; }
+            gameStatus = next.games; coupons = next.coupons; remoteLoaded = true;
+            return next;
+        }
+
+        function explainError(e) {
+            if (e && e.code === 'NO_TOKEN') return 'GitHub 토큰이 등록되어 있지 않습니다. 관리자 메뉴에서 토큰을 먼저 저장해 주세요.';
+            if (e && (e.status === 401 || e.status === 403)) return '토큰이 올바르지 않거나 권한이 없습니다. (Issues 쓰기 권한 필요)';
+            if (e && e.status === 404) return '저장소/이슈를 찾을 수 없습니다. GITHUB_CONFIG 를 확인해 주세요.';
+            return '저장 실패: ' + (e && e.message ? e.message : '네트워크 오류');
         }
 
         async function syncWithGitHub() {
-            const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}?t=${Date.now()}`;
             try {
-                const issueRes = await fetch(url, { headers: { 'Accept': 'application/vnd.github.v3+json' } });
-                if (issueRes.ok) {
-                    const issueData = await issueRes.json();
-                    try {
-                        const parsed = JSON.parse(issueData.body.trim());
-                        if (parsed && typeof parsed.dice === 'boolean') gameStatus = Object.assign(gameStatus, parsed);
-                    } catch(e) {}
-                }
-            } catch(err) {}
+                const cfg = await fetchRemoteConfig(false);
+                gameStatus = cfg.games; coupons = cfg.coupons; remoteLoaded = true;
+            } catch (err) { console.warn('GitHub 동기화 실패', err); }
             applyGameStatusUI();
+            renderCouponList();
         }
 
-        function applyGameStatusUI() {
-            document.getElementById('toggle-dice').checked = gameStatus.dice;
-            document.getElementById('toggle-bj').checked = gameStatus.bj;
-            document.getElementById('toggle-poker').checked = gameStatus.poker;
-            document.getElementById('toggle-holdem').checked = gameStatus.holdem;
-            document.getElementById('toggle-onecard').checked = gameStatus.onecard;
+        function isAdminOpen() { return $('admin-section').style.display === 'block'; }
 
-            ['dice', 'bj', 'poker', 'holdem', 'onecard'].forEach(g => {
-                const btn = document.getElementById(`tab-btn-${g}`);
-                if (gameStatus[g]) btn.classList.add('visible');
-                else btn.classList.remove('visible');
+        function applyGameStatusUI() {
+            // 관리자가 체크박스를 수정하는 중에는 덮어쓰지 않음
+            if (!isAdminOpen()) GAMES.forEach(g => { $(`toggle-${g}`).checked = gameStatus[g]; });
+            GAMES.forEach(g => $(`tab-btn-${g}`).classList.toggle('visible', !!gameStatus[g]));
+            ensureActiveGame();
+        }
+
+        // 현재 보고 있는 게임이 꺼졌거나 처음 로드될 때 켜져 있는 첫 게임으로 이동
+        function ensureActiveGame() {
+            const enabled = GAMES.filter(g => gameStatus[g]);
+            if (enabled.length === 0) {
+                GAMES.forEach(g => { $(`tab-btn-${g}`).classList.remove('active'); $(`game-${g}`).classList.remove('active'); });
+                return;
+            }
+            switchGame(gameStatus[activeGameType] ? activeGameType : enabled[0]);
+        }
+
+        async function updateGameStatus() {
+            const next = {};
+            GAMES.forEach(g => { next[g] = $(`toggle-${g}`).checked; });
+            const btn = $('btn-save-games');
+            btn.disabled = true;
+            try {
+                await writeRemoteConfig(cur => { cur.games = next; return cur; });
+                applyGameStatusUI();
+                alert('게임 설정이 저장되었습니다. (모든 접속자에게 반영)');
+            } catch (e) {
+                alert(explainError(e));
+            } finally { btn.disabled = false; }
+        }
+
+        /* ---------- 쿠폰 ---------- */
+        function renderCouponList() {
+            const box = $('coupon-list-box');
+            box.innerHTML = '';
+            if (!remoteLoaded) { box.textContent = '쿠폰 목록을 불러오지 못했습니다.'; return; }
+            if (coupons.length === 0) { box.textContent = '발행된 쿠폰이 없습니다.'; return; }
+            coupons.forEach(c => {
+                const row = document.createElement('div'); row.className = 'coupon-item';
+                const label = document.createElement('span');
+                label.textContent = `${c.code} — ${c.amount.toLocaleString()} L`;
+                const del = document.createElement('button');
+                del.className = 'btn-header'; del.textContent = '삭제';
+                del.onclick = () => deleteCoupon(c.code);
+                row.appendChild(label); row.appendChild(del);
+                box.appendChild(row);
             });
         }
 
-        function updateGameStatus() {}
+        async function addCoupon() {
+            const code = $('new-code').value.trim();
+            const amount = parseInt($('new-amount').value);
+            if (!code) return alert('쿠폰 코드를 입력해 주세요.');
+            if (isNaN(amount) || amount <= 0) return alert('금액을 1 이상의 숫자로 입력해 주세요.');
+            try {
+                await writeRemoteConfig(cur => {
+                    if (cur.coupons.some(c => c.code.toLowerCase() === code.toLowerCase())) { const e = new Error('이미 같은 코드의 쿠폰이 있습니다.'); throw e; }
+                    cur.coupons.push({ code, amount });
+                    return cur;
+                });
+                $('new-code').value = ''; $('new-amount').value = '';
+                renderCouponList();
+            } catch (e) { alert(explainError(e)); }
+        }
+
+        async function deleteCoupon(code) {
+            if (!confirm(`쿠폰 "${code}" 을(를) 삭제할까요?`)) return;
+            try {
+                await writeRemoteConfig(cur => { cur.coupons = cur.coupons.filter(c => c.code !== code); return cur; });
+                renderCouponList();
+            } catch (e) { alert(explainError(e)); }
+        }
+
+        async function useCouponModal() {
+            const input = prompt('쿠폰 코드를 입력하세요:');
+            if (input === null) return;
+            const code = input.trim();
+            if (!code) return;
+            try { const cfg = await fetchRemoteConfig(false); coupons = cfg.coupons; remoteLoaded = true; }
+            catch (e) { if (!remoteLoaded) return alert('쿠폰 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.'); }
+            const c = coupons.find(x => x.code.toLowerCase() === code.toLowerCase());
+            if (!c) return alert('유효하지 않은 쿠폰 코드입니다.');
+            if (usedCouponsLocal[c.code]) return alert('이미 사용한 쿠폰입니다.');
+            usedCouponsLocal[c.code] = true;
+            currentMoney += c.amount;
+            updateDisplay();
+            alert(`쿠폰 사용 완료! +${c.amount.toLocaleString()} L`);
+        }
+
+        /* ---------- 공통 ---------- */
         function saveGameData() {
             localStorage.setItem('casino_money', currentMoney);
             localStorage.setItem('casino_used_coupons', JSON.stringify(usedCouponsLocal));
         }
         function updateDisplay() {
-            document.getElementById('money').innerText = currentMoney.toLocaleString();
+            $('money').innerText = currentMoney.toLocaleString();
             saveGameData();
         }
         function switchGame(gameType) {
             if (!gameStatus[gameType]) return;
             activeGameType = gameType;
-            ['dice', 'bj', 'poker', 'holdem', 'onecard'].forEach(g => {
-                document.getElementById(`tab-btn-${g}`).classList.toggle('active', g === gameType);
-                document.getElementById(`game-${g}`).classList.toggle('active', g === gameType);
+            GAMES.forEach(g => {
+                $(`tab-btn-${g}`).classList.toggle('active', g === gameType);
+                $(`game-${g}`).classList.toggle('active', g === gameType);
             });
         }
-        async function useCouponModal() {}
+
         function openAdminMenu() {
-            if (prompt("관리자 비밀번호를 입력하세요:") === ADMIN_PASSWORD) {
-                document.getElementById('admin-section').style.display = 'block';
-                updateTokenStatus();
-            } else { alert("비밀번호 오류"); }
+            if (isAdminOpen()) return closeAdminMenu();
+            const pw = prompt("관리자 비밀번호를 입력하세요:");
+            if (pw === null) return;
+            if (pw !== ADMIN_PASSWORD) return alert("비밀번호 오류");
+            $('admin-section').style.display = 'block';
+            GAMES.forEach(g => { $(`toggle-${g}`).checked = gameStatus[g]; });
+            updateTokenStatus();
+            renderCouponList();
+            syncWithGitHub();
         }
-        function closeAdminMenu() { document.getElementById('admin-section').style.display = 'none'; }
+        function closeAdminMenu() { $('admin-section').style.display = 'none'; applyGameStatusUI(); }
         function setPlayerMoneyDirect() {
-            const amt = parseInt(prompt("변경할 잔액 입력:", currentMoney));
+            const input = prompt("변경할 잔액 입력:", currentMoney);
+            if (input === null) return;
+            const amt = parseInt(input);
             if (!isNaN(amt) && amt >= 0) { currentMoney = amt; updateDisplay(); }
+            else alert('0 이상의 숫자를 입력해 주세요.');
         }
 
         const SUITS = ['S', 'H', 'D', 'C'];
@@ -446,419 +585,546 @@
         function hit() { playerCards.push(getCard()); renderBj(); }
         function stand() { updateDisplay(); }
 
-        /* --- 닉네임 기능이 포함된 다인원 멀티플레이어 원카드 & 채팅 시스템 --- */
-        let peer = null, myPeerId = '';
+        /* --- 다인원 원카드 & 채팅 (방장이 덱/모든 손패/규칙 판정을 관리) --- */
+        const MAX_PLAYERS = 6;
+        let peer = null, myPeerId = '', peerCallbacks = [];
         let isHost = false;
-        let connections = {}; // 방장용: { peerId: connection 객체 }
-        let hostConn = null;  // 참여자용: 방장과의 connection 객체
+        let connections = {};   // 방장용: { peerId: conn }
+        let hostConn = null;    // 참여자용: 방장과의 conn
 
-        let roomPlayers = []; // [{id, name, cardCount}]
-        let myIndex = 0;
+        let roomPlayers = [];   // [{id, name, cardCount, safe}]
+        let myIndex = -1;
         let currentTurnIdx = 0;
-        let turnDirection = 1; // 1: 순방향, -1: 역순방향
+        let turnDirection = 1;  // 1: 순방향, -1: 역방향
 
-        let ocDeck = [], ocMyCards = [], ocTopCard = null, ocAttackStack = 0;
-        let ocGameActive = false, ocBetVal = 10000;
+        let ocMyCards = [], ocTopCard = null, ocAttackStack = 0;
+        let ocGameActive = false, ocBetVal = 10000, ocPot = 0;
 
-        function getMyNickname() {
-            const input = document.getElementById('oc-nickname');
-            return input ? input.value.trim() || "플레이어" : "플레이어";
+        // 방장 전용 상태
+        let hostHands = {}, hostDeck = [], hostDiscard = [], ocCheck = null;
+        let flashTimer = null;
+
+        /* ---------- 유틸 ---------- */
+        function cleanText(v, max) { return String(v == null ? '' : v).replace(/[\r\n\t]+/g, ' ').trim().slice(0, max); }
+        function mod(n, m) { return ((n % m) + m) % m; }
+        function shuffleArray(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+        function getMyNickname() { const el = $('oc-nickname'); return cleanText(el && el.value, 12) || '플레이어'; }
+        function cardLabel(c) { return c.isJoker ? (c.rank === 'COLOR' ? '컬러 조커' : '흑백 조커') : `${SUIT_ICONS[c.suit]}${c.rank}`; }
+        function sortHand(h) {
+            const order = { S: 0, H: 1, D: 2, C: 3, JOKER: 4 };
+            return h.sort((a, b) => (order[a.suit] - order[b.suit]) || (a.value - b.value));
+        }
+        function sendTo(id, data) { const c = connections[id]; if (c && c.open) c.send(data); }
+        function sendToHost(data) { if (hostConn && hostConn.open) hostConn.send(data); }
+        function broadcastToAll(data, exceptId) {
+            Object.entries(connections).forEach(([id, c]) => { if (id !== exceptId && c && c.open) c.send(data); });
+        }
+        function flashResult(msg) {
+            const el = $('oc-result');
+            el.innerText = msg;
+            clearTimeout(flashTimer);
+            flashTimer = setTimeout(() => { if (el.innerText === msg) el.innerText = ''; }, 2500);
         }
 
-        function openRuleModal() { document.getElementById('rule-modal').style.display = 'flex'; }
-        function closeRuleModal() { document.getElementById('rule-modal').style.display = 'none'; }
+        function openRuleModal() { $('rule-modal').style.display = 'flex'; }
+        function closeRuleModal() { $('rule-modal').style.display = 'none'; }
 
+        /* ---------- 채팅 (textContent 사용: 상대가 보낸 HTML 이 실행되지 않도록) ---------- */
         function appendChatLog(sender, text) {
-            const chatBox = document.getElementById('chat-messages');
+            const box = $('chat-messages');
             const div = document.createElement('div');
-            div.innerHTML = `<b>${sender}:</b> ${text}`;
-            chatBox.appendChild(div);
-            chatBox.scrollTop = chatBox.scrollHeight;
+            const b = document.createElement('b');
+            b.textContent = sender + ': ';
+            div.appendChild(b);
+            div.appendChild(document.createTextNode(text));
+            box.appendChild(div);
+            while (box.children.length > 100) box.removeChild(box.firstChild);
+            box.scrollTop = box.scrollHeight;
         }
+        function broadcastSystem(text) { appendChatLog('시스템', text); broadcastToAll({ type: 'CHAT', sender: '시스템', text }); }
 
         function sendChatMessage() {
-            const input = document.getElementById('chat-input');
-            const text = input.value.trim();
+            const input = $('chat-input');
+            const text = cleanText(input.value, 200);
             if (!text) return;
             const myName = getMyNickname();
             appendChatLog(myName, text);
             input.value = '';
-
-            const payload = { type: 'CHAT', sender: myName, text: text };
-            if (isHost) {
-                broadcastToAll(payload);
-            } else if (hostConn && hostConn.open) {
-                hostConn.send(payload);
-            }
+            if (isHost) broadcastToAll({ type: 'CHAT', sender: myName, text });
+            else sendToHost({ type: 'CHAT', text });
         }
 
-        function broadcastToAll(data) {
-            Object.values(connections).forEach(c => {
-                if (c && c.open) c.send(data);
-            });
-        }
-
-        function initPeer(onOpenCallback) {
-            if (peer) {
-                if (onOpenCallback && myPeerId) onOpenCallback(myPeerId);
-                return;
-            }
+        /* ---------- 접속 / 방 관리 ---------- */
+        function initPeer(cb) {
+            if (typeof Peer === 'undefined') { alert('멀티플레이 라이브러리(PeerJS)를 불러오지 못했습니다. 인터넷 연결을 확인하고 새로고침해 주세요.'); return; }
+            if (peer && myPeerId) { if (cb) cb(myPeerId); return; }
+            if (cb) peerCallbacks.push(cb);
+            if (peer) return; // 이미 연결 중이면 콜백만 대기열에 추가
             peer = new Peer();
             peer.on('open', (id) => {
                 myPeerId = id;
-                document.getElementById('oc-multi-status').innerText = `코드: ${id}`;
-                if (onOpenCallback) onOpenCallback(id);
+                const cbs = peerCallbacks; peerCallbacks = [];
+                cbs.forEach(f => f(id));
             });
-            peer.on('error', (err) => { alert('Peer 연결 오류: ' + err.type); });
+            peer.on('connection', onIncomingConnection);
+            peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} });
+            peer.on('error', (err) => {
+                if (err.type === 'peer-unavailable') { alert('방 코드를 찾을 수 없습니다. 코드를 다시 확인해 주세요.'); leaveRoom(); return; }
+                if (!myPeerId) { try { peer.destroy(); } catch (e) {} peer = null; peerCallbacks = []; }
+                alert('연결 오류: ' + err.type);
+            });
+        }
+
+        function onIncomingConnection(conn) {
+            if (!isHost) { conn.on('open', () => conn.close()); return; }
+            connections[conn.peer] = conn;
+            conn.on('data', (d) => handleHostData(conn.peer, d));
+            conn.on('close', () => {
+                if (connections[conn.peer] === conn) { delete connections[conn.peer]; hostRemovePlayer(conn.peer); }
+            });
+            conn.on('error', () => {});
         }
 
         function createOneCardRoom() {
+            if (ocGameActive && !confirm('진행 중인 게임을 나가고 새 방을 만들까요? (판돈은 돌려받지 못합니다)')) return;
+            leaveRoom();
             initPeer((id) => {
-                isHost = true;
-                connections = {};
-                const myName = getMyNickname();
-                roomPlayers = [{ id: id, name: myName + ' (방장)', cardCount: 0 }];
+                isHost = true; connections = {};
+                roomPlayers = [{ id, name: getMyNickname() + ' (방장)', cardCount: 0, safe: false }];
                 myIndex = 0;
-                document.getElementById('oc-room-id').value = id;
-                document.getElementById('oc-start-btn').style.display = 'block';
-                navigator.clipboard.writeText(id);
-                updatePlayerListUI();
-                alert(`방이 생성되었습니다! 방 코드가 복사되었습니다.\n참여자들에게 공유하세요.`);
-
-                peer.on('connection', (conn) => {
-                    connections[conn.peer] = conn;
-                    conn.on('open', () => {});
-                    conn.on('data', (data) => { handleHostData(conn.peer, data); });
-                    conn.on('close', () => {
-                        delete connections[conn.peer];
-                        roomPlayers = roomPlayers.filter(p => p.id !== conn.peer);
-                        broadcastRoomState();
-                    });
-                });
+                $('oc-room-id').value = id;
+                try { navigator.clipboard.writeText(id).catch(() => {}); } catch (e) {}
+                appendChatLog('시스템', `방이 생성되었습니다. 방 코드: ${id} (참여자에게 공유하세요)`);
+                updateRoleUI(); updatePlayerListUI(); updateOCStatus('참가자를 기다리는 중입니다.');
             });
         }
 
         function joinOneCardRoom() {
-            const targetId = document.getElementById('oc-room-id').value.trim();
+            const targetId = $('oc-room-id').value.trim();
             if (!targetId) return alert('방 코드를 입력하세요.');
+            if (ocGameActive && !confirm('진행 중인 게임을 나가고 다른 방에 참여할까요? (판돈은 돌려받지 못합니다)')) return;
+            leaveRoom();
             initPeer((id) => {
-                isHost = false;
-                hostConn = peer.connect(targetId);
-                hostConn.on('open', () => {
-                    document.getElementById('oc-multi-status').innerText = `방 연결 성공!`;
-                    hostConn.send({ type: 'JOIN_ROOM', id: id, name: getMyNickname() });
+                if (targetId === id) return alert('자신이 만든 방 코드입니다. 다른 사람의 방 코드를 입력하세요.');
+                const conn = peer.connect(targetId, { reliable: true });
+                hostConn = conn; isHost = false;
+                updateRoleUI();
+                let opened = false;
+                setTimeout(() => {
+                    if (!opened && hostConn === conn) { alert('방에 연결하지 못했습니다. 방 코드를 확인해 주세요.'); leaveRoom(); }
+                }, 10000);
+                conn.on('open', () => {
+                    opened = true;
+                    updateRoleUI();
+                    conn.send({ type: 'JOIN_ROOM', name: getMyNickname() });
                 });
-                hostConn.on('data', (data) => { handleGuestData(data); });
-                hostConn.on('close', () => { alert('방장과의 연결이 끊겼습니다.'); });
+                conn.on('data', handleGuestData);
+                conn.on('close', () => { if (hostConn === conn) onHostLost(); });
+                conn.on('error', () => {});
             });
+        }
+
+        function leaveOneCardRoom() {
+            if (ocGameActive && !confirm('게임 중에 나가면 판돈을 돌려받을 수 없습니다. 나갈까요?')) return;
+            leaveRoom();
+        }
+
+        function leaveRoom() {
+            const oldHostConn = hostConn; hostConn = null;
+            const oldConns = connections; connections = {};
+            isHost = false;
+            if (ocCheck) { clearTimeout(ocCheck.timer); ocCheck = null; }
+            ocGameActive = false; roomPlayers = []; myIndex = -1;
+            hostHands = {}; hostDeck = []; hostDiscard = [];
+            ocMyCards = []; ocTopCard = null; ocAttackStack = 0; currentTurnIdx = 0; turnDirection = 1;
+            try { if (oldHostConn) oldHostConn.close(); } catch (e) {}
+            Object.values(oldConns).forEach(c => { try { c.close(); } catch (e) {} });
+            $('oc-result').innerText = '';
+            updateRoleUI(); renderOneCardUI(); updatePlayerListUI();
+            updateOCStatus('게임 시작을 눌러주세요.');
+        }
+
+        function onHostLost() {
+            let msg = '방장과의 연결이 끊겼습니다.';
+            if (ocGameActive) {
+                currentMoney += ocBetVal; updateDisplay();
+                msg += ` 진행 중이던 판돈(${ocBetVal.toLocaleString()}L)이 환불되었습니다.`;
+            }
+            leaveRoom();
+            alert(msg);
+        }
+
+        function updateRoleUI() {
+            const joined = !!hostConn;
+            $('oc-start-btn').style.display = (isHost && !ocGameActive) ? 'inline-block' : 'none';
+            $('oc-nickname').disabled = isHost || joined;
+            $('ocBet').readOnly = joined;
+            $('oc-leave-btn').style.display = (isHost || joined) ? 'inline-block' : 'none';
+            let s = '상태: 대기 중';
+            if (isHost) s = `방장 | 코드: ${myPeerId}`;
+            else if (joined) s = hostConn.open ? '방에 참여 중' : '방에 연결하는 중...';
+            $('oc-multi-status').innerText = s;
         }
 
         function broadcastRoomState() {
             updatePlayerListUI();
-            broadcastToAll({
-                type: 'ROOM_STATE',
-                players: roomPlayers
-            });
+            broadcastToAll({ type: 'ROOM_STATE', players: roomPlayers });
         }
 
         function updatePlayerListUI() {
-            const listEl = document.getElementById('player-status-list');
+            const listEl = $('player-status-list');
+            listEl.innerHTML = '';
             if (roomPlayers.length === 0) {
-                listEl.innerHTML = `<span style="color:#777;">접속한 플레이어가 없습니다.</span>`;
-                return;
+                const s = document.createElement('span'); s.style.color = '#777'; s.textContent = '접속한 플레이어가 없습니다.';
+                listEl.appendChild(s); return;
             }
-            listEl.innerHTML = roomPlayers.map((p, idx) => {
-                const isMyTurn = (idx === currentTurnIdx && ocGameActive);
-                return `<div class="player-badge ${isMyTurn ? 'active-turn' : ''}">${p.name} (${p.cardCount}장)</div>`;
-            }).join('');
+            roomPlayers.forEach((p, idx) => {
+                const d = document.createElement('div');
+                d.className = 'player-badge' + (ocGameActive && idx === currentTurnIdx ? ' active-turn' : '');
+                d.textContent = `${p.name} (${p.cardCount}장)${p.safe ? ' ✅' : ''}`;
+                listEl.appendChild(d);
+            });
+        }
+
+        function updateOCStatus(msg) { $('oc-status-log').innerText = msg; }
+        function turnText() {
+            if (!ocGameActive) return '';
+            const cur = roomPlayers[currentTurnIdx];
+            if (!cur) return '';
+            let t = currentTurnIdx === myIndex ? '내 차례입니다.' : `${cur.name} 차례입니다.`;
+            if (ocAttackStack > 0) t += ` (공격 ${ocAttackStack}장 누적)`;
+            return t;
+        }
+        function statusLine(msg) { return (msg ? msg + ' ' : '') + turnText(); }
+
+        /* ---------- 규칙 판정 ---------- */
+        function canPlayCard(card, top, stack) {
+            if (!top) return false;
+            if (stack > 0) {                        // 공격 중: 같은 공격 카드(2↔2, A↔A) 또는 조커로만 방어
+                if (card.isJoker) return true;
+                if (top.isJoker) return false;
+                return card.rank === top.rank && (top.rank === '2' || top.rank === 'A');
+            }
+            if (card.isJoker || top.isJoker) return true;
+            return card.suit === top.suit || card.rank === top.rank;
+        }
+        function advanceTurn(step) { currentTurnIdx = mod(currentTurnIdx + step * turnDirection, roomPlayers.length); }
+
+        /* ---------- 방장: 게임 진행 ---------- */
+        function hostDrawCards(n) {
+            const out = [];
+            for (let i = 0; i < n; i++) {
+                if (hostDeck.length === 0) {
+                    if (hostDiscard.length === 0) break;
+                    hostDeck = shuffleArray(hostDiscard); hostDiscard = [];
+                }
+                out.push(hostDeck.pop());
+            }
+            return out;
         }
 
         function startMultiOneCardGame() {
-            if (!isHost) return;
+            if (!isHost || ocGameActive || ocCheck) return;
             if (roomPlayers.length < 2) return alert('최소 2명 이상 참여해야 게임을 시작할 수 있습니다.');
+            const bet = parseInt($('ocBet').value);
+            if (isNaN(bet) || bet <= 0) return alert('판돈을 1 이상으로 입력하세요.');
+            if (currentMoney < bet) return alert('잔액 부족');
+            const guests = roomPlayers.filter(p => p.id !== myPeerId);
+            ocCheck = { bet, replies: {}, expected: guests.map(g => g.id), timer: null };
+            updateOCStatus('참가자 잔액을 확인하는 중...');
+            guests.forEach(g => sendTo(g.id, { type: 'BET_CHECK', bet }));
+            ocCheck.timer = setTimeout(finishBetCheck, 3000);
+            if (guests.length === 0) finishBetCheck();
+        }
 
-            ocBetVal = parseInt(document.getElementById('ocBet').value);
-            if (isNaN(ocBetVal) || ocBetVal <= 0 || currentMoney < ocBetVal) return alert('잔액 부족');
+        function onBetReply(peerId, ok) {
+            if (!ocCheck) return;
+            ocCheck.replies[peerId] = ok === true;
+            if (ocCheck.expected.every(id => id in ocCheck.replies)) finishBetCheck();
+        }
 
-            currentMoney -= ocBetVal;
-            updateDisplay();
+        function finishBetCheck() {
+            if (!ocCheck) return;
+            clearTimeout(ocCheck.timer);
+            const { bet, replies } = ocCheck; ocCheck = null;
+            if (roomPlayers.length < 2) return updateOCStatus('참가자가 부족해 시작하지 못했습니다.');
+            const lacking = roomPlayers.filter(p => p.id !== myPeerId && replies[p.id] !== true);
+            if (lacking.length > 0) {
+                const msg = `${lacking.map(p => p.name).join(', ')}님의 잔액이 부족하거나 응답이 없어 시작할 수 없습니다.`;
+                broadcastSystem(msg); updateOCStatus(msg); return;
+            }
+            beginRound(bet);
+        }
 
-            ocDeck = createDeck();
-            ocMyCards = []; 
-            for(let i=0; i<7; i++) ocMyCards.push(ocDeck.pop());
-
-            let hands = {};
-            roomPlayers.forEach((p, idx) => {
-                if (idx === 0) {
-                    p.cardCount = ocMyCards.length;
-                } else {
-                    let pCards = [];
-                    for(let i=0; i<7; i++) pCards.push(ocDeck.pop());
-                    p.cardCount = pCards.length;
-                    hands[p.id] = pCards;
-                }
+        function beginRound(bet) {
+            ocBetVal = bet; ocPot = bet * roomPlayers.length;
+            currentMoney -= bet; updateDisplay();
+            hostDeck = createDeck(); hostDiscard = []; hostHands = {};
+            roomPlayers.forEach(p => {
+                const h = []; for (let i = 0; i < 7; i++) h.push(hostDeck.pop());
+                hostHands[p.id] = sortHand(h); p.safe = false;
             });
+            let top = hostDeck.pop();
+            while (top.isJoker || top.rank === '2' || top.rank === 'A') { hostDeck.unshift(top); top = hostDeck.pop(); }
+            ocTopCard = top; ocAttackStack = 0; currentTurnIdx = 0; turnDirection = 1; ocGameActive = true;
+            $('oc-result').innerText = '';
+            hostSyncAll('게임을 시작합니다!', { start: true, bet: ocBetVal, pot: ocPot });
+        }
 
-            ocTopCard = ocDeck.pop();
-            while(ocTopCard.rank === '2' || ocTopCard.rank === 'A' || ocTopCard.isJoker) {
-                ocDeck.unshift(ocTopCard);
-                ocTopCard = ocDeck.pop();
-            }
-
-            ocAttackStack = 0;
-            currentTurnIdx = 0;
-            turnDirection = 1;
-            ocGameActive = true;
-
-            roomPlayers.forEach((p, idx) => {
-                if (idx !== 0 && connections[p.id]) {
-                    connections[p.id].send({
-                        type: 'START_GAME',
-                        topCard: ocTopCard,
-                        myCards: hands[p.id],
-                        players: roomPlayers,
-                        deck: ocDeck,
-                        bet: ocBetVal,
-                        currentTurnIdx: currentTurnIdx
-                    });
-                }
+        // 모든 참가자에게 (각자의 손패와 함께) 현재 상태 전송 + 방장 화면 갱신
+        function hostSyncAll(msg, extra) {
+            roomPlayers.forEach(p => { p.cardCount = (hostHands[p.id] || []).length; });
+            roomPlayers.forEach(p => {
+                if (p.id === myPeerId) return;
+                sendTo(p.id, Object.assign({
+                    type: 'GAME_STATE', topCard: ocTopCard, players: roomPlayers, attackStack: ocAttackStack,
+                    currentTurnIdx, myCards: hostHands[p.id] || [], msg
+                }, extra || {}));
             });
-
-            document.getElementById('oc-result').innerText = '';
-            renderOneCardUI();
-            updateOCStatus(currentTurnIdx === myIndex ? "내 차례입니다." : `${roomPlayers[currentTurnIdx].name} 차례입니다.`);
-            updatePlayerListUI();
+            ocMyCards = hostHands[myPeerId] || [];
+            myIndex = roomPlayers.findIndex(p => p.id === myPeerId);
+            renderOneCardUI(); updatePlayerListUI(); updateRoleUI();
+            updateOCStatus(statusLine(msg));
         }
 
-        function handleHostData(peerId, data) {
-            if (data.type === 'JOIN_ROOM') {
-                roomPlayers.push({ id: data.id, name: data.name, cardCount: 0 });
-                broadcastRoomState();
-            } else if (data.type === 'CHAT') {
-                appendChatLog(data.sender, data.text);
-                Object.entries(connections).forEach(([pid, c]) => {
-                    if (pid !== peerId && c && c.open) c.send(data);
-                });
-            } else if (data.type === 'PLAY_CARD') {
-                ocTopCard = data.card;
-                ocAttackStack = data.attackStack;
-                
-                const p = roomPlayers.find(item => item.id === peerId);
-                if (p) p.cardCount = data.cardCount;
+        function reject(pid, msg) {
+            if (pid === myPeerId) flashResult(msg); else sendTo(pid, { type: 'NOTICE', msg });
+        }
 
-                if (data.cardCount === 0) {
-                    endMultiGame(false, `${p.name} 승리!`);
-                    return;
-                }
-
-                let skipCount = 1;
-                if (data.card.rank === 'J') skipCount = 2;
-                else if (data.card.rank === 'Q') turnDirection *= -1;
-                else if (data.card.rank === 'K') skipCount = 0;
-
-                currentTurnIdx = (currentTurnIdx + (skipCount * turnDirection) + roomPlayers.length) % roomPlayers.length;
-                broadcastGameState();
-            } else if (data.type === 'DRAW_CARD') {
-                const p = roomPlayers.find(item => item.id === peerId);
-                if (p) p.cardCount = data.cardCount;
-                ocAttackStack = 0;
-
-                currentTurnIdx = (currentTurnIdx + turnDirection + roomPlayers.length) % roomPlayers.length;
-                broadcastGameState();
-            } else if (data.type === 'PENALTY_CALL') {
-                broadcastToAll({ type: 'ALERT', msg: data.msg });
-                alert(data.msg);
+        function hostPlay(pid, idx) {
+            if (!ocGameActive) return;
+            const pi = roomPlayers.findIndex(p => p.id === pid);
+            if (pi < 0 || pi !== currentTurnIdx) return reject(pid, '내 차례가 아닙니다.');
+            const hand = hostHands[pid]; idx = Number(idx);
+            if (!hand || !Number.isInteger(idx) || idx < 0 || idx >= hand.length) return;
+            const card = hand[idx];
+            if (!canPlayCard(card, ocTopCard, ocAttackStack)) {
+                return reject(pid, ocAttackStack > 0 ? `공격(${ocAttackStack}장)을 막을 수 없는 카드입니다. 막을 카드가 없으면 카드를 받아야 합니다.` : '낼 수 없는 카드입니다.');
             }
-        }
-
-        function broadcastGameState() {
-            updatePlayerListUI();
-            const state = {
-                type: 'GAME_STATE',
-                topCard: ocTopCard,
-                players: roomPlayers,
-                attackStack: ocAttackStack,
-                currentTurnIdx: currentTurnIdx
-            };
-            broadcastToAll(state);
-            updateOCStatus(currentTurnIdx === myIndex ? "내 차례입니다." : `${roomPlayers[currentTurnIdx].name} 차례입니다.`);
-        }
-
-        function handleGuestData(data) {
-            if (data.type === 'ROOM_STATE') {
-                roomPlayers = data.players;
-                updatePlayerListUI();
-            } else if (data.type === 'START_GAME') {
-                ocBetVal = data.bet;
-                currentMoney -= ocBetVal;
-                updateDisplay();
-
-                ocTopCard = data.topCard;
-                ocMyCards = data.myCards;
-                roomPlayers = data.players;
-                ocDeck = data.deck;
-                currentTurnIdx = data.currentTurnIdx;
-                ocAttackStack = 0;
-                ocGameActive = true;
-
-                myIndex = roomPlayers.findIndex(p => p.id === myPeerId);
-                renderOneCardUI();
-                updateOCStatus(currentTurnIdx === myIndex ? "내 차례입니다." : `${roomPlayers[currentTurnIdx].name} 차례입니다.`);
-                updatePlayerListUI();
-            } else if (data.type === 'GAME_STATE') {
-                ocTopCard = data.topCard;
-                roomPlayers = data.players;
-                ocAttackStack = data.attackStack;
-                currentTurnIdx = data.currentTurnIdx;
-
-                renderOneCardUI();
-                updateOCStatus(currentTurnIdx === myIndex ? "내 차례입니다." : `${roomPlayers[currentTurnIdx].name} 차례입니다.`);
-                updatePlayerListUI();
-            } else if (data.type === 'CHAT') {
-                appendChatLog(data.sender, data.text);
-            } else if (data.type === 'ALERT') {
-                alert(data.msg);
-            } else if (data.type === 'GAME_OVER') {
-                ocGameActive = false;
-                document.getElementById('oc-result').innerText = data.msg;
-            }
-        }
-
-        function renderOneCardUI() {
-            const cardHTML = (c) => {
-                if(c.isJoker) return `<div class="card joker"><div class="card-suit">🃏</div><div class="card-rank">${c.rank}</div></div>`;
-                return `<div class="card ${(c.suit==='H'||c.suit==='D')?'red':''}"><div class="card-suit">${SUIT_ICONS[c.suit]}</div><div class="card-rank">${c.rank}</div></div>`;
-            };
-
-            document.getElementById('oc-top-card').innerHTML = ocTopCard ? cardHTML(ocTopCard) : '';
-            document.getElementById('oc-my-cards').innerHTML = ocMyCards.map((c, idx) => `
-                <div class="card ${c.isJoker?'joker':(c.suit==='H'||c.suit==='D')?'red':''}" onclick="playOneCard(${idx})">
-                    <div class="card-suit">${c.isJoker?'🃏':SUIT_ICONS[c.suit]}</div>
-                    <div class="card-rank">${c.rank}</div>
-                </div>
-            `).join('');
-
-            document.getElementById('oc-attack-count').innerText = ocAttackStack;
-            
-            const someoneHasOne = roomPlayers.some((p, idx) => idx !== myIndex && p.cardCount === 1);
-            document.getElementById('oc-call-btn').style.display = someoneHasOne ? 'block' : 'none';
-        }
-
-        function updateOCStatus(msg) { document.getElementById('oc-status-log').innerText = msg; }
-
-        function playOneCard(idx) {
-            if (!ocGameActive) return alert('게임 중이 아닙니다.');
-            if (currentTurnIdx !== myIndex) return alert('내 차례가 아닙니다!');
-
-            const card = ocMyCards[idx];
-            let isValid = false;
-
-            if (card.isJoker) {
-                isValid = true;
-            } else if (ocTopCard.isJoker) {
-                isValid = true;
-            } else {
-                if (ocAttackStack > 0) {
-                    if (ocTopCard.rank === '2' && (card.rank === '2' || card.isJoker)) isValid = true;
-                    else if (ocTopCard.rank === 'A' && (card.rank === 'A' || card.isJoker)) isValid = true;
-                    else if (ocTopCard.isJoker && card.isJoker) isValid = true;
-                    else return alert(`누적 공격(${ocAttackStack}장) 방어 카드를 내야 합니다!`);
-                } else {
-                    isValid = (card.suit === ocTopCard.suit || card.rank === ocTopCard.rank);
-                }
-            }
-
-            if (!isValid) return alert('낼 수 없는 카드입니다.');
-
-            ocMyCards.splice(idx, 1);
+            hand.splice(idx, 1);
+            if (ocTopCard) hostDiscard.push(ocTopCard);
             ocTopCard = card;
+            const p = roomPlayers[pi]; p.safe = false;
 
-            if (card.rank === '2') ocAttackStack += 2;
+            if (card.isJoker) ocAttackStack += card.attack;
+            else if (card.rank === '2') ocAttackStack += 2;
             else if (card.rank === 'A') ocAttackStack += 3;
-            else if (card.isJoker) ocAttackStack += card.attack;
 
-            roomPlayers[myIndex].cardCount = ocMyCards.length;
-
-            if (ocMyCards.length === 0) {
-                endMultiGame(true, "우승을 차지했습니다!");
+            if (hand.length === 0) {
+                hostSyncAll(`${p.name}님이 마지막 카드(${cardLabel(card)})를 냈습니다!`);
+                hostEnd(pid);
                 return;
             }
 
-            let skipCount = 1;
-            if (card.rank === 'J') skipCount = 2;
-            else if (card.rank === 'Q') turnDirection *= -1;
-            else if (card.rank === 'K') skipCount = 0;
+            let step = 1, note = '';
+            if (card.rank === 'J') { step = 2; note = ' 다음 사람을 건너뜁니다.'; }
+            else if (card.rank === 'Q') { turnDirection *= -1; note = ' 진행 방향이 바뀝니다.'; }
+            else if (card.rank === 'K') { step = 0; note = ' 한 번 더!'; }
+            advanceTurn(step);
+            hostSyncAll(`${p.name}님이 ${cardLabel(card)}을(를) 냈습니다.${note}`);
+        }
 
-            currentTurnIdx = (currentTurnIdx + (skipCount * turnDirection) + roomPlayers.length) % roomPlayers.length;
+        function hostDraw(pid) {
+            if (!ocGameActive) return;
+            const pi = roomPlayers.findIndex(p => p.id === pid);
+            if (pi < 0 || pi !== currentTurnIdx) return reject(pid, '내 차례가 아닙니다.');
+            const attacked = ocAttackStack > 0;
+            const got = hostDrawCards(attacked ? ocAttackStack : 1);
+            hostHands[pid].push(...got);
+            roomPlayers[pi].safe = false;
+            ocAttackStack = 0;
+            advanceTurn(1);
+            hostSyncAll(`${roomPlayers[pi].name}님이 ${attacked ? '공격으로 ' : ''}${got.length}장을 받았습니다.`);
+        }
 
-            if (isHost) {
-                broadcastGameState();
-            } else if (hostConn && hostConn.open) {
-                hostConn.send({
-                    type: 'PLAY_CARD',
-                    card: card,
-                    cardCount: ocMyCards.length,
-                    attackStack: ocAttackStack
-                });
+        // 원카드! : 1장 남은 본인이 누르면 '선언', 다른 사람이 먼저 누르면 상대가 4장 벌칙
+        function hostCall(cid) {
+            if (!ocGameActive) return;
+            const me = roomPlayers.find(p => p.id === cid);
+            if (!me) return;
+            const cnt = p => (hostHands[p.id] || []).length;
+            if (cnt(me) === 1 && !me.safe) {
+                me.safe = true;
+                return hostSyncAll(`${me.name}님이 "원카드!"를 외쳤습니다.`);
             }
-            renderOneCardUI();
+            const target = roomPlayers.find(p => p.id !== cid && cnt(p) === 1 && !p.safe);
+            if (!target) return reject(cid, '원카드 대상이 없습니다.');
+            hostHands[target.id].push(...hostDrawCards(4));
+            target.safe = false;
+            hostSyncAll(`${me.name}님이 먼저 "원카드!"를 외쳤습니다! ${target.name}님이 벌칙 4장을 받습니다.`);
+        }
+
+        function hostEnd(winnerId) {
+            const w = roomPlayers.find(p => p.id === winnerId);
+            const payload = { type: 'GAME_OVER', winnerId, winnerName: w ? w.name : '', pot: ocPot, bet: ocBetVal };
+            broadcastToAll(payload);
+            applyGameOver(payload);
+        }
+
+        function applyGameOver(d) {
+            ocGameActive = false;
+            const el = $('oc-result');
+            if (d.winnerId === myPeerId) {
+                currentMoney += d.pot;
+                el.innerText = `🎉 게임 승리! (+${d.pot.toLocaleString()}L)`;
+            } else {
+                el.innerText = `게임 종료: ${d.winnerName} 승리 (-${d.bet.toLocaleString()}L)`;
+            }
+            updateDisplay(); updateRoleUI(); updatePlayerListUI(); renderOneCardUI();
+            updateOCStatus('게임이 끝났습니다.' + (isHost ? ' 다시 시작할 수 있습니다.' : ''));
+        }
+
+        function hostRemovePlayer(pid) {
+            const idx = roomPlayers.findIndex(p => p.id === pid);
+            if (idx < 0) return;
+            const name = roomPlayers[idx].name;
+            roomPlayers.splice(idx, 1);
+            if (!ocGameActive) { broadcastSystem(`${name}님이 나갔습니다.`); broadcastRoomState(); return; }
+
+            (hostHands[pid] || []).forEach(c => hostDiscard.push(c));
+            delete hostHands[pid];
+            broadcastSystem(`${name}님이 게임 중 나가서 판돈을 잃었습니다.`);
+            if (roomPlayers.length < 2) {
+                const last = roomPlayers[0];
+                if (last) { hostSyncAll(`${name}님이 나갔습니다.`); hostEnd(last.id); }
+                return;
+            }
+            const wasTurn = (idx === currentTurnIdx);
+            if (idx < currentTurnIdx || (wasTurn && turnDirection === -1)) currentTurnIdx--;
+            currentTurnIdx = mod(currentTurnIdx, roomPlayers.length);
+            if (wasTurn) ocAttackStack = 0; // 나간 사람에게 걸려 있던 공격은 소멸
+            hostSyncAll(`${name}님이 나갔습니다.`);
+        }
+
+        function handleHostData(peerId, data) {
+            if (!data || typeof data.type !== 'string') return;
+            const p = roomPlayers.find(x => x.id === peerId);
+            switch (data.type) {
+                case 'JOIN_ROOM': {
+                    if (p) return;
+                    const deny = (msg) => {
+                        sendTo(peerId, { type: 'JOIN_DENIED', msg });
+                        setTimeout(() => { const c = connections[peerId]; if (c) c.close(); }, 300);
+                    };
+                    if (ocGameActive || ocCheck) return deny('게임이 진행 중이라 지금은 입장할 수 없습니다.');
+                    if (roomPlayers.length >= MAX_PLAYERS) return deny(`최대 ${MAX_PLAYERS}명까지 참여할 수 있습니다.`);
+                    let base = cleanText(data.name, 12) || '플레이어', name = base, n = 2;
+                    while (roomPlayers.some(x => x.name.replace(' (방장)', '') === name)) name = `${base}${n++}`;
+                    roomPlayers.push({ id: peerId, name, cardCount: 0, safe: false });
+                    broadcastRoomState();
+                    broadcastSystem(`${name}님이 입장했습니다.`);
+                    break;
+                }
+                case 'CHAT': {
+                    if (!p) return;
+                    const text = cleanText(data.text, 200);
+                    if (!text) return;
+                    const sender = p.name.replace(' (방장)', '');
+                    appendChatLog(sender, text);
+                    broadcastToAll({ type: 'CHAT', sender, text }, peerId);
+                    break;
+                }
+                case 'BET_REPLY': onBetReply(peerId, data.ok); break;
+                case 'PLAY_CARD': if (p) hostPlay(peerId, data.index); break;
+                case 'DRAW_CARD': if (p) hostDraw(peerId); break;
+                case 'CALL_ONECARD': if (p) hostCall(peerId); break;
+            }
+        }
+
+        /* ---------- 참여자: 방장 메시지 처리 ---------- */
+        function handleGuestData(data) {
+            if (!data || typeof data.type !== 'string') return;
+            switch (data.type) {
+                case 'ROOM_STATE':
+                    roomPlayers = data.players;
+                    myIndex = roomPlayers.findIndex(p => p.id === myPeerId);
+                    updatePlayerListUI();
+                    break;
+                case 'BET_CHECK':
+                    sendToHost({ type: 'BET_REPLY', ok: currentMoney >= data.bet });
+                    break;
+                case 'GAME_STATE':
+                    if (data.start) {
+                        ocBetVal = data.bet; ocPot = data.pot;
+                        currentMoney = Math.max(0, currentMoney - ocBetVal); updateDisplay();
+                        ocGameActive = true;
+                        $('oc-result').innerText = '';
+                    }
+                    ocTopCard = data.topCard; roomPlayers = data.players; ocAttackStack = data.attackStack;
+                    currentTurnIdx = data.currentTurnIdx; ocMyCards = data.myCards || [];
+                    myIndex = roomPlayers.findIndex(p => p.id === myPeerId);
+                    renderOneCardUI(); updatePlayerListUI(); updateRoleUI();
+                    updateOCStatus(statusLine(data.msg));
+                    break;
+                case 'CHAT': appendChatLog(cleanText(data.sender, 12) || '?', cleanText(data.text, 200)); break;
+                case 'NOTICE': flashResult(cleanText(data.msg, 100)); break;
+                case 'JOIN_DENIED': alert(cleanText(data.msg, 100)); leaveRoom(); break;
+                case 'GAME_OVER': applyGameOver(data); break;
+            }
+        }
+
+        /* ---------- 화면 ---------- */
+        function buildCardEl(c) {
+            const el = document.createElement('div');
+            el.className = 'card' + (c.isJoker ? ' joker' : ((c.suit === 'H' || c.suit === 'D') ? ' red' : ''));
+            const s = document.createElement('div'); s.className = 'card-suit';
+            s.textContent = c.isJoker ? '🃏' : (SUIT_ICONS[c.suit] || '');
+            const r = document.createElement('div'); r.className = 'card-rank';
+            r.textContent = c.isJoker ? (c.rank === 'COLOR' ? '컬러' : '흑백') : String(c.rank);
+            el.appendChild(s); el.appendChild(r);
+            return el;
+        }
+
+        function renderOneCardUI() {
+            const top = $('oc-top-card'); top.innerHTML = '';
+            if (ocTopCard) top.appendChild(buildCardEl(ocTopCard));
+
+            const my = $('oc-my-cards'); my.innerHTML = '';
+            const myTurn = ocGameActive && currentTurnIdx === myIndex;
+            ocMyCards.forEach((c, idx) => {
+                const el = buildCardEl(c);
+                if (myTurn && !canPlayCard(c, ocTopCard, ocAttackStack)) el.classList.add('dim');
+                el.onclick = () => playOneCard(idx);
+                my.appendChild(el);
+            });
+
+            $('oc-attack-count').innerText = ocAttackStack;
+            $('oc-draw-btn').innerText = ocAttackStack > 0 ? `공격 받기 (${ocAttackStack}장)` : '카드 먹기 / 패스';
+            const callable = ocGameActive && roomPlayers.some(p => p.cardCount === 1 && !p.safe);
+            $('oc-call-btn').style.display = callable ? 'block' : 'none';
+        }
+
+        /* ---------- 내 행동 ---------- */
+        function playOneCard(idx) {
+            if (!ocGameActive) return flashResult('게임 중이 아닙니다.');
+            if (currentTurnIdx !== myIndex) return flashResult('내 차례가 아닙니다!');
+            const card = ocMyCards[idx];
+            if (!card) return;
+            if (!canPlayCard(card, ocTopCard, ocAttackStack)) {
+                return flashResult(ocAttackStack > 0 ? `공격(${ocAttackStack}장)을 막을 카드가 아닙니다. 막을 수 없으면 '공격 받기'를 누르세요.` : '낼 수 없는 카드입니다.');
+            }
+            if (isHost) hostPlay(myPeerId, idx); else sendToHost({ type: 'PLAY_CARD', index: idx });
         }
 
         function drawOneCard() {
-            if (!ocGameActive) return alert('게임 중이 아닙니다.');
-            if (currentTurnIdx !== myIndex) return alert('내 차례가 아닙니다!');
-
-            let drawCount = ocAttackStack > 0 ? ocAttackStack : 1;
-            for (let i = 0; i < drawCount; i++) {
-                if (ocDeck.length > 0) ocMyCards.push(ocDeck.pop());
-            }
-            ocAttackStack = 0;
-            roomPlayers[myIndex].cardCount = ocMyCards.length;
-
-            currentTurnIdx = (currentTurnIdx + turnDirection + roomPlayers.length) % roomPlayers.length;
-
-            if (isHost) {
-                broadcastGameState();
-            } else if (hostConn && hostConn.open) {
-                hostConn.send({
-                    type: 'DRAW_CARD',
-                    cardCount: ocMyCards.length
-                });
-            }
-            renderOneCardUI();
+            if (!ocGameActive) return flashResult('게임 중이 아닙니다.');
+            if (currentTurnIdx !== myIndex) return flashResult('내 차례가 아닙니다!');
+            if (isHost) hostDraw(myPeerId); else sendToHost({ type: 'DRAW_CARD' });
         }
 
         function callOneCardBtn() {
-            const myName = getMyNickname();
-            const msg = `${myName}님이 원카드!를 외쳤습니다! 다른 플레이어에게 벌칙 4장이 부여됩니다.`;
-            if (isHost) {
-                broadcastToAll({ type: 'ALERT', msg: msg });
-                alert(msg);
-            } else if (hostConn && hostConn.open) {
-                hostConn.send({ type: 'PENALTY_CALL', msg: msg });
-            }
-        }
-
-        function endMultiGame(isWin, resultText) {
-            ocGameActive = false;
-            const res = document.getElementById('oc-result');
-            if (isWin) {
-                currentMoney += ocBetVal * roomPlayers.length;
-                res.innerText = `게임 승리! (+${(ocBetVal * roomPlayers.length).toLocaleString()}L)`;
-            } else {
-                res.innerText = `게임 종료: ${resultText}`;
-            }
-            updateDisplay();
-
-            if (isHost) {
-                broadcastToAll({ type: 'GAME_OVER', msg: `게임 종료: ${resultText}` });
-            }
+            if (!ocGameActive) return;
+            if (isHost) hostCall(myPeerId); else sendToHost({ type: 'CALL_ONECARD' });
         }
 
         window.onload = function() {
             updateDisplay();
-            switchGame('dice');
+            applyGameStatusUI();
+            updateTokenStatus();
+            updateRoleUI();
+            renderOneCardUI();
             syncWithGitHub();
+            setInterval(syncWithGitHub, 5 * 60 * 1000); // 관리자 설정 변경 반영 (API 호출 한도 고려해 5분 간격)
         };
     </script>
 </body>
