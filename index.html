@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>test</title>
+    <title>새 탭</title>
+    <!-- PeerJS P2P 멀티플레이어 라이브러리 -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #121212; color: #ffffff; margin: 0; padding: 12px; display: flex; justify-content: center; }
@@ -15,8 +17,8 @@
         .btn-header { padding: 6px 10px; font-size: 12px; background-color: #333333; color: #ffffff; border: 1px solid #555555; border-radius: 6px; cursor: pointer; }
         .btn-admin { background-color: #ffffff; color: #000000; border: none; font-weight: bold; }
         
-        .tab-menu { display: flex; gap: 4px; margin-bottom: 16px; }
-        .tab-btn { flex: 1; padding: 8px 0; font-size: 12px; font-weight: bold; background-color: #121212; color: #888888; border: 1px solid #333333; border-radius: 6px; cursor: pointer; display: none; }
+        .tab-menu { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+        .tab-btn { flex: 1; min-width: 70px; padding: 8px 0; font-size: 12px; font-weight: bold; background-color: #121212; color: #888888; border: 1px solid #333333; border-radius: 6px; cursor: pointer; display: none; }
         .tab-btn.visible { display: block !important; }
         .tab-btn.active { background-color: #ffffff; color: #000000; border-color: #ffffff; }
 
@@ -36,11 +38,12 @@
         .card-area { background: #121212; border: 1px solid #2a2a2a; padding: 8px; border-radius: 8px; margin-bottom: 8px; }
         .area-title { font-size: 11px; color: #aaaaaa; margin-bottom: 6px; text-align: left; }
         .cards { display: flex; justify-content: center; gap: 4px; flex-wrap: wrap; }
-        .card { width: 38px; height: 56px; background: #ffffff; color: #000000; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; border: 1px solid #cccccc; }
+        .card { width: 42px; height: 60px; background: #ffffff; color: #000000; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; border: 1px solid #cccccc; cursor: pointer; user-select: none; }
         .card.red { color: #d32f2f; }
         .card.hidden { background: #2a2a2a; border-color: #444444; color: #666666; }
-        .card-suit { font-size: 9px; }
-        .card-rank { font-size: 13px; }
+        .card.selected { border: 2px solid #00e676; transform: translateY(-4px); }
+        .card-suit { font-size: 10px; }
+        .card-rank { font-size: 14px; }
 
         .dealer-log { font-size: 12px; color: #aaaaaa; margin-bottom: 8px; min-height: 16px; }
         .result-msg { font-size: 14px; margin-top: 10px; min-height: 20px; font-weight: bold; color: #ffffff; }
@@ -54,12 +57,15 @@
 
         .game-toggle-box { display: flex; flex-direction: column; gap: 6px; background: #222; padding: 8px; border-radius: 4px; margin-bottom: 10px; }
         .toggle-item { display: flex; justify-content: space-between; align-items: center; }
+
+        /* 멀티플레이 스탈 */
+        .multi-panel { background: #181818; border: 1px solid #333; padding: 8px; border-radius: 6px; margin-bottom: 10px; font-size: 12px; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <div class="site-title">test</div>
+        <div class="site-title">새 탭</div>
 
         <div class="header">
             <div class="money-box">잔액: <span id="money">0</span> L</div>
@@ -73,10 +79,8 @@
         <div id="admin-section" class="admin-panel">
             <h4>GitHub 연동 설정 (최초 1회, 이 기기에만 저장)</h4>
             <div class="notice-text">
-                토큰을 등록하면 아래 "쿠폰 발행"과 "게임 설정"이 GitHub 페이지로 이동할 필요 없이 이 사이트 안에서 바로 반영됩니다.<br>
-                <a href="https://github.com/settings/tokens?type=beta" target="_blank" style="color:#8ab4f8;">Fine-grained Token 발급 페이지</a>에서
-                Repository access를 이 저장소(<b id="repo-name-hint"></b>) 하나로 제한하고, Permissions → Issues를 "Read and write"로 설정해 발급한 뒤 아래에 붙여넣으세요.
-                이 토큰은 서버로 전송되지 않고 <b>이 브라우저에만</b> 저장되니, 공용/타인 컴퓨터에서는 등록하지 마세요.
+                토큰을 등록하면 아래 "쿠폰 발행/삭제"와 "게임 설정"이 GitHub 페이지로 이동할 필요 없이 이 사이트 안에서 바로 반영됩니다.<br>
+                Permissions → Issues를 "Read and write"로 설정해 발급한 뒤 붙여넣으세요.
             </div>
             <div style="display: flex; gap: 4px; margin-bottom: 6px;">
                 <input type="password" id="gh-token-input" placeholder="GitHub Token 붙여넣기" style="flex:1; padding: 4px; font-size: 12px; background:#222; color:#fff; border:1px solid #444;">
@@ -91,13 +95,12 @@
                 <div class="toggle-item"><span>블랙잭</span><input type="checkbox" id="toggle-bj"></div>
                 <div class="toggle-item"><span>세븐포커</span><input type="checkbox" id="toggle-poker"></div>
                 <div class="toggle-item"><span>홀덤</span><input type="checkbox" id="toggle-holdem"></div>
+                <div class="toggle-item"><span>원카드 (멀티)</span><input type="checkbox" id="toggle-onecard"></div>
             </div>
             <button class="btn-header" style="width:100%; margin-bottom:10px;" onclick="updateGameStatus()">게임 설정 저장 (즉시 전체 반영)</button>
 
             <h4>전체 기기 공용 쿠폰 목록</h4>
             <div class="coupon-list" id="coupon-list-box">GitHub 불러오는 중...</div>
-            
-            <div class="notice-text">* 토큰이 등록되어 있으면 아래에서 발행 버튼을 누르는 즉시 모든 사용자에게 반영됩니다. (GitHub 페이지 이동 불필요)</div>
             
             <div style="display: flex; gap: 4px; margin-bottom: 8px;">
                 <input type="text" id="new-code" placeholder="쿠폰 코드" style="flex:1; padding: 4px; font-size: 12px; background:#222; color:#fff; border:1px solid #444;">
@@ -117,6 +120,7 @@
             <button id="tab-btn-bj" class="tab-btn visible" onclick="switchGame('bj')">블랙잭</button>
             <button id="tab-btn-poker" class="tab-btn visible" onclick="switchGame('poker')">세븐포커</button>
             <button id="tab-btn-holdem" class="tab-btn visible" onclick="switchGame('holdem')">홀덤</button>
+            <button id="tab-btn-onecard" class="tab-btn visible" onclick="switchGame('onecard')">원카드</button>
         </div>
 
         <!-- 1. 주사위 -->
@@ -218,6 +222,45 @@
             <div id="holdem-result" class="result-msg"></div>
         </div>
 
+        <!-- 5. 원카드 (멀티플레이) -->
+        <div id="game-onecard" class="game-section">
+            <div class="multi-panel">
+                <div style="margin-bottom: 6px;"><b>P2P 실시간 멀티플레이</b></div>
+                <div style="display: flex; gap: 4px; margin-bottom: 6px;">
+                    <button class="btn-header" onclick="createOneCardRoom()">방 만들기 (Host)</button>
+                    <input type="text" id="oc-room-id" placeholder="방 코드 입력" style="flex:1; background:#222; color:#fff; border:1px solid #444; padding:4px; font-size:11px;">
+                    <button class="btn-header" onclick="joinOneCardRoom()">참여하기</button>
+                </div>
+                <div id="oc-multi-status" style="font-size: 11px; color: #aaa;">상태: 솔로/대기 중</div>
+            </div>
+
+            <div class="bet-box">
+                판돈: <input type="number" id="ocBet" min="1" value="10000"> L
+                <button class="action-btn btn-primary" id="oc-start-btn" style="width: 80px; padding: 4px; margin-left: 8px;" onclick="startOneCardGame()">게임 시작</button>
+            </div>
+
+            <div id="oc-status-log" class="dealer-log">게임 시작 버튼을 누르면 카드가 배분됩니다.</div>
+
+            <div class="card-area">
+                <div class="area-title">중앙 상단 카드 (최근 낸 카드) | 누적 공격: <span id="oc-attack-count" style="color:#d32f2f; font-weight:bold;">0</span>장</div>
+                <div id="oc-top-card" class="cards"></div>
+            </div>
+
+            <div class="card-area">
+                <div class="area-title">상대방 카드 수: <span id="oc-op-count">0</span>장</div>
+            </div>
+
+            <div class="card-area">
+                <div class="area-title">내 카드 (클릭하여 내기)</div>
+                <div id="oc-my-cards" class="cards"></div>
+            </div>
+
+            <div id="oc-controls" class="action-row" style="margin-top:10px;">
+                <button class="action-btn" onclick="drawOneCard()">카드 1장 먹기/패스</button>
+            </div>
+            <div id="oc-result" class="result-msg"></div>
+        </div>
+
     </div>
 
     <script>
@@ -233,10 +276,10 @@
         let currentMoney = parseInt(localStorage.getItem('casino_money')) || DEFAULT_MONEY;
         let coupons = [];
         let usedCouponsLocal = JSON.parse(localStorage.getItem('casino_used_coupons')) || {};
-        let gameStatus = { dice: true, bj: true, poker: true, holdem: true };
+        let gameStatus = { dice: true, bj: true, poker: true, holdem: true, onecard: true };
         let activeGameType = 'dice';
 
-        /* --- GitHub 토큰 관리 (이 브라우저에만 저장, 서버로 전송되지 않음) --- */
+        /* --- GitHub 토큰 관리 --- */
         const GH_TOKEN_KEY = 'casino_gh_token';
         function saveGithubToken() {
             const t = document.getElementById('gh-token-input').value.trim();
@@ -244,7 +287,7 @@
             localStorage.setItem(GH_TOKEN_KEY, t);
             document.getElementById('gh-token-input').value = '';
             updateTokenStatus();
-            alert('토큰이 이 브라우저에 저장되었습니다. 이제 쿠폰 발행/게임 설정이 사이트 안에서 바로 반영됩니다.');
+            alert('토큰이 이 브라우저에 저장되었습니다.');
         }
         function clearGithubToken() {
             localStorage.removeItem(GH_TOKEN_KEY);
@@ -258,7 +301,7 @@
             const hint = document.getElementById('repo-name-hint');
             if (hint) hint.innerText = `${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}`;
             if (!el) return;
-            el.innerText = getGithubToken() ? '✅ 토큰 등록됨 (자동 반영 가능)' : '⚠️ 토큰 미등록 — 등록 전까지는 자동 반영이 되지 않습니다.';
+            el.innerText = getGithubToken() ? '✅ 토큰 등록됨 (자동 발행/삭제 가능)' : '⚠️ 토큰 미등록 — 등록 전까지는 자동 반영이 되지 않습니다.';
         }
 
         async function syncWithGitHub() {
@@ -273,7 +316,7 @@
                     try {
                         const parsed = JSON.parse(issueData.body.trim());
                         if (parsed && typeof parsed.dice === 'boolean') {
-                            gameStatus = parsed;
+                            gameStatus = Object.assign({ dice: true, bj: true, poker: true, holdem: true, onecard: true }, parsed);
                         }
                     } catch(e) {}
                 }
@@ -289,7 +332,11 @@
                             if (parsed.code && parsed.amount) {
                                 const upperCode = String(parsed.code).trim().toUpperCase();
                                 if (!tempCoupons.some(item => item.code === upperCode)) {
-                                    tempCoupons.push({ code: upperCode, amount: parseInt(parsed.amount) });
+                                    tempCoupons.push({ 
+                                        commentId: c.id, 
+                                        code: upperCode, 
+                                        amount: parseInt(parsed.amount) 
+                                    });
                                 }
                             }
                         } catch(e) {}
@@ -309,8 +356,9 @@
             document.getElementById('toggle-bj').checked = gameStatus.bj;
             document.getElementById('toggle-poker').checked = gameStatus.poker;
             document.getElementById('toggle-holdem').checked = gameStatus.holdem;
+            document.getElementById('toggle-onecard').checked = gameStatus.onecard;
 
-            const games = ['dice', 'bj', 'poker', 'holdem'];
+            const games = ['dice', 'bj', 'poker', 'holdem', 'onecard'];
             let currentStillValid = false;
 
             games.forEach(g => {
@@ -339,7 +387,8 @@
                 dice: document.getElementById('toggle-dice').checked,
                 bj: document.getElementById('toggle-bj').checked,
                 poker: document.getElementById('toggle-poker').checked,
-                holdem: document.getElementById('toggle-holdem').checked
+                holdem: document.getElementById('toggle-holdem').checked,
+                onecard: document.getElementById('toggle-onecard').checked
             };
 
             const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/${GITHUB_CONFIG.issueNumber}`;
@@ -361,7 +410,7 @@
                 applyGameStatusUI();
                 alert('게임 설정이 저장되어 모든 사용자에게 즉시 반영됩니다.');
             } catch (err) {
-                alert(`설정 저장 실패: ${err.message}\n토큰 권한(해당 저장소의 Issues: Read and write)을 확인해 주세요.`);
+                alert(`설정 저장 실패: ${err.message}`);
             }
         }
 
@@ -378,7 +427,7 @@
         function switchGame(gameType) {
             if (!gameStatus[gameType]) return;
             activeGameType = gameType;
-            const games = ['dice', 'bj', 'poker', 'holdem'];
+            const games = ['dice', 'bj', 'poker', 'holdem', 'onecard'];
             games.forEach(g => {
                 const btn = document.getElementById(`tab-btn-${g}`);
                 const sec = document.getElementById(`game-${g}`);
@@ -432,6 +481,7 @@
             listEl.innerHTML = coupons.map((c) => `
                 <div class="coupon-item">
                     <span><b>${c.code}</b> (+${parseInt(c.amount).toLocaleString()}L)</span>
+                    <button class="btn-header" style="padding: 2px 6px; font-size:10px; background:#d32f2f; border:none;" onclick="deleteCoupon(${c.commentId}, '${c.code}')">삭제</button>
                 </div>
             `).join('');
         }
@@ -467,7 +517,33 @@
                 await syncWithGitHub();
                 alert(`쿠폰 [${code}] 발행 완료! 모든 사용자에게 즉시 반영됩니다.`);
             } catch (err) {
-                alert(`쿠폰 발행 실패: ${err.message}\n토큰 권한(해당 저장소의 Issues: Read and write)을 확인해 주세요.`);
+                alert(`쿠폰 발행 실패: ${err.message}`);
+            }
+        }
+
+        async function deleteCoupon(commentId, code) {
+            const token = getGithubToken();
+            if (!token) return alert('먼저 위쪽에서 GitHub 토큰을 등록해 주세요.');
+
+            if (!confirm(`정말 [${code}] 쿠폰을 삭제하시겠습니까?`)) return;
+
+            const url = `https://api.github.com/repos/${GITHUB_CONFIG.owner}/${GITHUB_CONFIG.repo}/issues/comments/${commentId}`;
+            try {
+                const res = await fetch(url, {
+                    method: 'DELETE',
+                    headers: {
+                        'Accept': 'application/vnd.github.v3+json',
+                        'Authorization': `token ${token}`
+                    }
+                });
+                if (!res.ok && res.status !== 204) {
+                    const errData = await res.json().catch(() => ({}));
+                    throw new Error(errData.message || `HTTP ${res.status}`);
+                }
+                await syncWithGitHub();
+                alert(`쿠폰 [${code}]이 삭제되었습니다.`);
+            } catch (err) {
+                alert(`쿠폰 삭제 실패: ${err.message}`);
             }
         }
 
@@ -479,7 +555,7 @@
             }
         }
 
-        /* --- 카드 및 게임 관련 로직 --- */
+        /* --- 카드 및 표준 로직 --- */
         const SUITS = ['S', 'H', 'D', 'C'];
         const SUIT_ICONS = { 'S': '♠', 'H': '♥', 'D': '♦', 'C': '♣' };
         const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
@@ -539,7 +615,7 @@
             return best;
         }
 
-        /* 1. 주사위 기능 */
+        /* 1. 주사위 */
         function playDice() {
             const bet = parseInt(document.getElementById('diceBet').value);
             const predict = parseInt(document.getElementById('predictSum').value);
@@ -560,7 +636,7 @@
             updateDisplay();
         }
 
-        /* 2. 블랙잭 기능 */
+        /* 2. 블랙잭 */
         let playerCards = [], dealerCards = [], bjBet = 0, bjPlaying = false;
         function getCard() { return Math.floor(Math.random() * 10) + 1; }
         function calcScore(cards) { return cards.reduce((a, b) => a + b, 0); }
@@ -611,7 +687,7 @@
             updateDisplay();
         }
 
-        /* 3. 세븐포커 기능 */
+        /* 3. 세븐포커 */
         let pokerDeck = [], player7Cards = [], dealer7Cards = [], potMoney = 0, baseBet = 0, pokerRound = 0, pokerPlaying = false;
         function startSevenPoker() {
             if (pokerPlaying) return;
@@ -671,7 +747,7 @@
             updateDisplay();
         }
 
-        /* 4. 홀덤 기능 */
+        /* 4. 홀덤 */
         let holdemDeck = [], communityCards = [], holdemPlayerCards = [], holdemDealerCards = [];
         let holdemPot = 0, holdemBetVal = 0, holdemStep = 0, holdemPlaying = false;
 
@@ -751,6 +827,265 @@
             document.getElementById('holdem-controls').style.display = 'none';
             document.getElementById('holdem-start-btn').disabled = false;
             if (!finished) document.getElementById('holdem-result').innerText = '기권패';
+            updateDisplay();
+        }
+
+        /* 5. 원카드 및 P2P 멀티플레이어 구현 */
+        let peer = null, conn = null, isHost = false;
+        let ocDeck = [], ocMyCards = [], ocOpCardCount = 0, ocTopCard = null, ocAttackStack = 0;
+        let isMyTurn = false, ocGameActive = false, ocBetVal = 10000;
+
+        function initPeer() {
+            if (peer) return;
+            peer = new Peer();
+            peer.on('open', (id) => {
+                document.getElementById('oc-multi-status').innerText = `내 P2P ID: ${id}`;
+            });
+            peer.on('connection', (c) => {
+                conn = c;
+                isHost = true;
+                setupConnection();
+                document.getElementById('oc-multi-status').innerText = `상대방 연결 완료! (Host)`;
+            });
+        }
+
+        function createOneCardRoom() {
+            initPeer();
+            if (peer && peer.id) {
+                document.getElementById('oc-room-id').value = peer.id;
+                navigator.clipboard.writeText(peer.id);
+                alert(`방 코드가 복사되었습니다! 상대방에게 전달하세요:\n${peer.id}`);
+            }
+        }
+
+        function joinOneCardRoom() {
+            const targetId = document.getElementById('oc-room-id').value.trim();
+            if (!targetId) return alert('방 코드를 입력하세요.');
+            initPeer();
+            conn = peer.connect(targetId);
+            isHost = false;
+            setupConnection();
+        }
+
+        function setupConnection() {
+            conn.on('open', () => {
+                document.getElementById('oc-multi-status').innerText = `P2P 실시간 연결 성공!`;
+            });
+            conn.on('data', (data) => {
+                handleMultiData(data);
+            });
+        }
+
+        function sendMultiData(data) {
+            if (conn && conn.open) {
+                conn.send(data);
+            }
+        }
+
+        function startOneCardGame() {
+            ocBetVal = parseInt(document.getElementById('ocBet').value);
+            if (isNaN(ocBetVal) || ocBetVal <= 0 || currentMoney < ocBetVal) return alert('잔액이 부족합니다.');
+
+            if (!conn || !conn.open) {
+                // 싱글 (봇 모드)
+                isHost = true;
+                startOneCardLogic();
+            } else {
+                // 멀티플레이 (Host만 카드 생성 및 배분)
+                if (isHost) {
+                    startOneCardLogic();
+                } else {
+                    alert('게임 시작 권한은 방장(Host)에게 있습니다.');
+                }
+            }
+        }
+
+        function startOneCardLogic() {
+            currentMoney -= ocBetVal;
+            updateDisplay();
+
+            ocDeck = createDeck();
+            ocMyCards = [ocDeck.pop(), ocDeck.pop(), ocDeck.pop(), ocDeck.pop(), ocDeck.pop(), ocDeck.pop(), ocDeck.pop()];
+            let opCards = [ocDeck.pop(), ocDeck.pop(), ocDeck.pop(), ocDeck.pop(), ocDeck.pop(), ocDeck.pop(), ocDeck.pop()];
+            
+            ocTopCard = ocDeck.pop();
+            ocAttackStack = 0;
+            ocGameActive = true;
+            isMyTurn = true; // Host 선
+
+            if (conn && conn.open) {
+                sendMultiData({
+                    type: 'START_GAME',
+                    topCard: ocTopCard,
+                    myCards: opCards, // 상대방에게 7장 지급
+                    opCardCount: ocMyCards.length,
+                    deck: ocDeck,
+                    bet: ocBetVal
+                });
+            } else {
+                ocOpCardCount = 7;
+            }
+
+            document.getElementById('oc-result').innerText = '';
+            renderOneCardUI();
+            updateOCStatus("내 차례입니다. 낼 수 있는 카드를 누르세요.");
+        }
+
+        function handleMultiData(data) {
+            if (data.type === 'START_GAME') {
+                ocBetVal = data.bet;
+                currentMoney -= ocBetVal;
+                updateDisplay();
+
+                ocTopCard = data.topCard;
+                ocMyCards = data.myCards;
+                ocOpCardCount = data.opCardCount;
+                ocDeck = data.deck;
+                ocAttackStack = 0;
+                ocGameActive = true;
+                isMyTurn = false; // Guest는 후공
+                renderOneCardUI();
+                updateOCStatus("상대방 차례입니다. 대기 중...");
+            } else if (data.type === 'PLAY_CARD') {
+                ocTopCard = data.card;
+                ocOpCardCount = data.opCardCount;
+                ocAttackStack += data.attackAdd;
+                isMyTurn = true;
+                
+                checkWinCondition();
+                renderOneCardUI();
+                if (ocGameActive) updateOCStatus("상대방이 카드를 냈습니다! 내 차례입니다.");
+            } else if (data.type === 'DRAW_CARD') {
+                ocOpCardCount = data.opCardCount;
+                isMyTurn = true;
+                renderOneCardUI();
+                updateOCStatus("상대방이 카드를 먹었습니다. 내 차례입니다.");
+            }
+        }
+
+        function renderOneCardUI() {
+            const cardHTML = (c) => `<div class="card ${(c.suit==='H'||c.suit==='D')?'red':''}"><div class="card-suit">${SUIT_ICONS[c.suit]}</div><div class="card-rank">${c.rank}</div></div>`;
+            document.getElementById('oc-top-card').innerHTML = ocTopCard ? cardHTML(ocTopCard) : '';
+            
+            document.getElementById('oc-my-cards').innerHTML = ocMyCards.map((c, idx) => `
+                <div class="card ${(c.suit==='H'||c.suit==='D')?'red':''}" onclick="playOneCard(${idx})">
+                    <div class="card-suit">${SUIT_ICONS[c.suit]}</div>
+                    <div class="card-rank">${c.rank}</div>
+                </div>
+            `).join('');
+
+            document.getElementById('oc-op-count').innerText = ocOpCardCount;
+            document.getElementById('oc-attack-count').innerText = ocAttackStack;
+        }
+
+        function updateOCStatus(msg) {
+            document.getElementById('oc-status-log').innerText = msg;
+        }
+
+        function playOneCard(idx) {
+            if (!ocGameActive) return;
+            if (!isMyTurn) return alert('상대방의 차례입니다!');
+
+            const card = ocMyCards[idx];
+            // 원카드 규칙 검사 (숫자나 문양이 같아야 함 또는 특수 공격 상황)
+            const isValid = (card.suit === ocTopCard.suit || card.rank === ocTopCard.rank);
+            
+            if (!isValid) {
+                return alert('낼 수 없는 카드입니다. 문양이나 숫자가 같아야 합니다.');
+            }
+
+            // 카드가 유효함
+            ocMyCards.splice(idx, 1);
+            ocTopCard = card;
+
+            let attackAdd = 0;
+            if (card.rank === '2') attackAdd = 2;
+            else if (card.rank === 'A') attackAdd = 3;
+
+            ocAttackStack += attackAdd;
+
+            if (ocMyCards.length === 0) {
+                // 승리!
+                endOneCardGame(true);
+                return;
+            }
+
+            if (conn && conn.open) {
+                sendMultiData({
+                    type: 'PLAY_CARD',
+                    card: card,
+                    opCardCount: ocMyCards.length,
+                    attackAdd: attackAdd
+                });
+                isMyTurn = false;
+                updateOCStatus("카드를 냈습니다. 상대방 차례 대기 중...");
+            } else {
+                // 싱글 (AI 봇 응답)
+                isMyTurn = false;
+                renderOneCardUI();
+                setTimeout(botPlayOneCard, 1000);
+            }
+            renderOneCardUI();
+        }
+
+        function drawOneCard() {
+            if (!ocGameActive || !isMyTurn) return;
+
+            let drawCount = ocAttackStack > 0 ? ocAttackStack : 1;
+            for (let i = 0; i < drawCount; i++) {
+                if (ocDeck.length > 0) ocMyCards.push(ocDeck.pop());
+            }
+            ocAttackStack = 0;
+
+            if (conn && conn.open) {
+                sendMultiData({
+                    type: 'DRAW_CARD',
+                    opCardCount: ocMyCards.length
+                });
+                isMyTurn = false;
+                updateOCStatus("카드를 먹었습니다. 상대방 차례 대기 중...");
+            } else {
+                isMyTurn = false;
+                renderOneCardUI();
+                setTimeout(botPlayOneCard, 1000);
+            }
+            renderOneCardUI();
+        }
+
+        function botPlayOneCard() {
+            if (!ocGameActive) return;
+            // 봇 단순 로직
+            const playableIdx = ocMyCards.findIndex(c => c.suit === ocTopCard.suit || c.rank === ocTopCard.rank);
+            if (playableIdx !== -1) {
+                // 봇 공격 카드나 카드 제출
+                ocOpCardCount--;
+            } else {
+                ocOpCardCount++;
+            }
+            isMyTurn = true;
+            if (ocOpCardCount <= 0) {
+                endOneCardGame(false);
+            } else {
+                updateOCStatus("봇이 턴을 마쳤습니다. 내 차례입니다.");
+            }
+            renderOneCardUI();
+        }
+
+        function checkWinCondition() {
+            if (ocOpCardCount <= 0) {
+                endOneCardGame(false);
+            }
+        }
+
+        function endOneCardGame(isWin) {
+            ocGameActive = false;
+            const res = document.getElementById('oc-result');
+            if (isWin) {
+                currentMoney += ocBetVal * 2;
+                res.innerText = `원카드 승리! (+${(ocBetVal * 2).toLocaleString()}L)`;
+            } else {
+                res.innerText = `원카드 패배 (-${ocBetVal.toLocaleString()}L)`;
+            }
             updateDisplay();
         }
 
